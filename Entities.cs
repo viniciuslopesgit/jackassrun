@@ -5,7 +5,7 @@ namespace JackassRun;
 // Todas as entidades do mundo tem so campos de valor, entao MemberwiseClone basta
 // para tirar o snapshot usado pela mecanica de rebobinar o tempo.
 
-public enum EnemyKind { Soldier, Rocketeer, Brute, Flyer, Turret }
+public enum EnemyKind { Soldier, Rocketeer, Brute, Flyer, Turret, Knife, Bomber }
 
 public sealed class Enemy
 {
@@ -14,6 +14,7 @@ public sealed class Enemy
     public float X, Y, VX, VY, BaseY, Phase;
     public int Hp, Facing = -1, Burst;
     public float FireT, AlertT, StateT, HurtT, MuzzleT, AnimT, LandT, HitDir;
+    public float StunT, FuseT = -1;      // atordoado (porta chutada / pisao); pavio do homem-bomba
     public bool OnGround, Alerted, Walking, Dead, LastBoom;
     public Enemy Clone() => (Enemy)MemberwiseClone();
 
@@ -38,7 +39,7 @@ public sealed class Bullet
     public Bullet Clone() => (Bullet)MemberwiseClone();
 }
 
-public enum PropKind { Barrel, Cage, Glorb }
+public enum PropKind { Barrel, Cage, Glorb, Hostage }
 
 public sealed class Prop
 {
@@ -47,6 +48,17 @@ public sealed class Prop
     public float X, Y, VY, T, Fuse = -1;
     public bool Done;
     public Prop Clone() => (Prop)MemberwiseClone();
+}
+
+/// <summary>Sala de um predio: fica escura ate ser revelada (porta aberta, parede destruida ou heroi dentro).
+/// Inimigos numa sala escura nao enxergam o heroi.</summary>
+public sealed class Room
+{
+    public int X0, Y0, X1, Y1;          // em blocos, inclusivo
+    public bool Revealed;
+    public float Fade = 1;              // 1 = escuro; some aos poucos ao revelar
+    public Room Clone() => (Room)MemberwiseClone();
+    public bool Contains(int tx, int ty, int pad = 0) => tx >= X0 - pad && tx <= X1 + pad && ty >= Y0 - pad && ty <= Y1 + pad;
 }
 
 /// <summary>Bloco de terreno caindo depois que a estrutura perdeu a sustentacao.</summary>
@@ -70,6 +82,7 @@ public sealed class WorldState
 {
     public int Frame, NextChunk, NextId = 1_000_000, Score, Kills;
     public float CamX, Speed = 34, FreezeT;
+    public float CamY = 120, Zoom = 1;   // camera vertical e zoom (1 = normal, ZOOM_OUT = afastado)
     public float ShotCD;          // "vez" de atirar: enquanto > 0 nenhum inimigo atira
     public Rng Rng;
     public List<Enemy> Enemies = new();
@@ -77,6 +90,7 @@ public sealed class WorldState
     public List<Prop> Props = new();
     public List<Explosion> Explosions = new();
     public List<FallingBlock> Falling = new();
+    public List<Room> Rooms = new();
 
     public WorldState Clone()
     {
@@ -86,6 +100,7 @@ public sealed class WorldState
         s.Props = Props.ConvertAll(p => p.Clone());
         s.Explosions = Explosions.ConvertAll(x => x.Clone());
         s.Falling = Falling.ConvertAll(f => f.Clone());
+        s.Rooms = Rooms.ConvertAll(r => r.Clone());
         return s;
     }
 }
@@ -119,8 +134,9 @@ public sealed class Ghost
 /// Toda alteracao entra num log com o frame, para poder ser desfeita ao rebobinar.</summary>
 public sealed class Terrain
 {
-    public const int EMPTY = 0, DIRT = 1, BRICK = 2, STEEL = 3, CRATE = 4;
-    static readonly int[] MaxHp = { 0, 8, 5, 999, 3 };
+    public const int EMPTY = 0, DIRT = 1, BRICK = 2, STEEL = 3, CRATE = 4, BEDROCK = 5, DOOR = 6;
+    static readonly int[] MaxHp = { 0, 8, 5, 999, 3, 999, 2 };
+    public static bool Unbreakable(int type) => type == STEEL || type == BEDROCK;
 
     readonly struct Mod
     {
@@ -129,6 +145,10 @@ public sealed class Terrain
     }
 
     readonly Dictionary<int, ushort[]> cols = new();
+    readonly Dictionary<int, int> surf = new();      // linha da superficie original (abaixo dela = subsolo)
+
+    public void SetSurface(int tx, int row) => surf[tx] = row;
+    public bool Underground(int tx, int ty) => surf.TryGetValue(tx, out var r) && ty > r;
     readonly List<Mod> log = new();
 
     // bits: 0-3 dano | 4-5 variacao | 6-7 aparencia (0 grama, 1 terra, 2 fundo) | 8-10 tipo
@@ -181,7 +201,7 @@ public sealed class Terrain
         while (n < log.Count && log[n].Frame <= minFrame) n++;
         if (n > 0) log.RemoveRange(0, n);
         if (cols.Count > 400)
-            foreach (var k in cols.Keys.Where(k => k < minCol).ToList()) cols.Remove(k);
+            foreach (var k in cols.Keys.Where(k => k < minCol).ToList()) { cols.Remove(k); surf.Remove(k); }
     }
 
     /// <summary>Primeira linha solida da coluna, ou -1 se for um buraco.</summary>

@@ -32,6 +32,13 @@ Segure contra uma parede no ar para escalar.
 - **Prisioneiros nas jaulas**: +1 Time Out. **Glorbs**: 12 dão +1 especial.
 - **Terreno destrutível**: balas quebram tijolos/terra/caixotes; explosões abrem crateras. Aço é indestrutível.
 - **Desabamentos**: estruturas sem apoio (sem chão embaixo nem aço segurando) caem e esmagam quem estiver embaixo.
+- **Mundo em camadas**: céu, superfície e subsolo. Alguns buracos levam a **cavernas** (com prêmios) e
+  **túneis** que correm por baixo da superfície; outros (sem fundo) são fatais. Plataformas e torres levam para cima.
+  A câmera segue na vertical e **afasta o zoom** dentro de cavernas/túneis e em quedas longas.
+- **Prédios (inspirado em Door Kickers: Action Squad)**: salas escuras com porta. Correr contra a porta a
+  **arromba e atordoa** quem está atrás; cair em cima de um inimigo também atordoa. Inimigo atordoado vale o dobro.
+  **Reféns**: encoste para salvar (+300); acertar um refém custa -500. Inimigos novos: **faca** (mata no contato)
+  e **homem-bomba** (corre até você e explode; atire antes e ele explode nos vizinhos).
 - **Eras** a cada 200 m: Selva 1985 → Jurássico → Idade Média → Futuro Neon (e repete, mais rápido).
 
 ## Heróis

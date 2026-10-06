@@ -76,6 +76,8 @@ public struct Look
     public Color Skin, Hair, Shirt, Pants, Boots, Gun, Accent;
     public byte Hat, Bulk, GunLen, GunH;
     public byte Wpn;          // arma desenhada: ver Sprites.Guns
+    public Color Arms, Belt;  // cor dos bracos (uniforme) e do cinto, quando SuitArms / CustomBelt
+    public bool SuitArms, CustomBelt, Cape;
     public bool Blade;
 }
 

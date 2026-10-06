@@ -97,7 +97,12 @@ public sealed partial class Game
     void KillEnemy(Enemy e)
     {
         e.Dead = true;
-        int pts = e.Kind switch { EnemyKind.Brute => 300, EnemyKind.Turret => 250, EnemyKind.Flyer => 150, EnemyKind.Rocketeer => 150, _ => 100 };
+        int pts = e.Kind switch { EnemyKind.Brute => 300, EnemyKind.Turret => 250, EnemyKind.Flyer => 150, EnemyKind.Rocketeer => 150,
+            EnemyKind.Knife => 150, EnemyKind.Bomber => 200, _ => 100 };
+        bool neutral = e.StunT > 0;                        // atordoado vale o dobro
+        if (neutral) pts *= 2;
+        // homem-bomba abatido explode (acerta inimigos ao redor, nao o heroi)
+        if (e.Kind == EnemyKind.Bomber) Explode(e.X, e.Y - 8, 32, true, K.PLAYER_ID);
         S.Score += pts; S.Kills++;
         var era = Eras.ForX(e.X);
         var blood = BloodOf(era);
@@ -120,13 +125,13 @@ public sealed partial class Game
             if (e.LastBoom) Gibs(e.X, cy, look.Skin, look.Shirt, look.Pants, blood, e.Kind == EnemyKind.Brute ? 45 : 30);
             else
             {
-                AddCorpse(e.X, e.Y + Gfx.Pivot, Art.Grunts[Eras.IndexForX(e.X), (int)e.Kind], e.Facing, e.HitDir, false, era);
+                AddCorpse(e.X, e.Y + Gfx.Pivot, Art.Grunts[Eras.IndexForX(e.X), DesignExport.GruntIndex(e.Kind)], e.Facing, e.HitDir, false, era);
                 BloodSpray(e.X, cy, e.HitDir, e.Kind == EnemyKind.Brute ? 24 : 16, blood, 1.25f);
             }
             if (era.Style == BgStyle.Future)
                 for (int k = 0; k < 8; k++) AddPart(PKind.Spark, e.X, cy, R(-120, 120), R(-140, 20), 0.35f, 1, Cyan);
         }
-        AddText(e.X, cy - 16, "+" + pts, Yellow);
+        AddText(e.X, cy - 16, (neutral ? "NEUTRALIZADO +" : "+") + pts, Yellow);
         shake = MathF.Max(shake, 2);
         if (e.Kind == EnemyKind.Brute) hitStop = 0.05f;
     }
@@ -140,7 +145,7 @@ public sealed partial class Game
         int type = Terrain.TypeOf(b);
         if (type == 0) return true;
         float cx = tx * K.T + K.HT, cy = ty * K.T + K.HT;
-        if (type == Terrain.STEEL)
+        if (Terrain.Unbreakable(type))
         {
             if (dmg < 99) sfx.Play("clank", 0.5f);
             for (int k = 0; k < 3; k++) AddPart(PKind.Spark, cx, cy, R(-70, 70), -R(20, 80), 0.18f, 1, k == 0 ? White : Yellow);
@@ -163,6 +168,7 @@ public sealed partial class Game
             }
             if (!boom || fx.Next(2) == 0) AddPart(PKind.Smoke, cx, cy, R(-12, 12), -R(5, 25), 0.7f, 3, A(dust, 0.85f));
             brokenQ.Add((tx, ty));
+            RevealNear(tx, ty);
             collapseQ.Add((tx - 1, ty)); collapseQ.Add((tx + 1, ty));
             collapseQ.Add((tx, ty - 1)); collapseQ.Add((tx, ty + 1));
             return true;
@@ -175,7 +181,7 @@ public sealed partial class Game
 
     static Color TileColor(int type, Era e) => type switch
     {
-        Terrain.DIRT => e.Dirt, Terrain.BRICK => e.Brick, Terrain.STEEL => e.Steel, _ => Hex(0xa8743a),
+        Terrain.DIRT => e.Dirt, Terrain.BRICK => e.Brick, Terrain.STEEL => e.Steel, Terrain.BEDROCK => e.DirtDark, Terrain.DOOR => Hex(0x9a6432), _ => Hex(0xa8743a),
     };
 
     /// <summary>Estruturas sem apoio (sem chao embaixo nem aco segurando) desabam em blocos.</summary>
@@ -190,7 +196,7 @@ public sealed partial class Game
             {
                 if (Ter.Solid(bx, by)) continue;          // ja foi preenchido por outro bloco
                 int above = by - 1;
-                if (!Ter.Solid(bx, above) || Ter.Type(bx, above) == Terrain.STEEL) continue;
+                if (!Ter.Solid(bx, above) || Terrain.Unbreakable(Ter.Type(bx, above))) continue;
                 // preso pelos lados: so as vezes cai (terra segura mais, caixote quase sempre cai)
                 if (Ter.Solid(bx - 1, above) || Ter.Solid(bx + 1, above))
                 {
@@ -201,7 +207,7 @@ public sealed partial class Game
                     if (!S.Rng.Chance(chance)) continue;
                 }
                 int top = by - 1;
-                while (top >= 0 && Ter.Solid(bx, top) && Ter.Type(bx, top) != Terrain.STEEL) top--;
+                while (top >= 0 && Ter.Solid(bx, top) && !Terrain.Unbreakable(Ter.Type(bx, top))) top--;
                 for (int y = by - 1; y > top; y--)          // de baixo para cima
                 {
                     ushort b = Ter.Get(bx, y);
@@ -222,7 +228,7 @@ public sealed partial class Game
         var comp = new List<(int x, int y)>();
         foreach (var start in collapseQ)
         {
-            if (!Ter.Solid(start.x, start.y) || Ter.Type(start.x, start.y) == Terrain.STEEL) continue;
+            if (!Ter.Solid(start.x, start.y) || Terrain.Unbreakable(Ter.Type(start.x, start.y))) continue;
             stack.Clear(); seen.Clear(); comp.Clear();
             stack.Push(start); seen.Add(start);
             bool supported = false;
@@ -234,7 +240,7 @@ public sealed partial class Game
                 foreach (var n in new[] { (x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1) })
                 {
                     if (!Ter.Solid(n.Item1, n.Item2)) continue;
-                    if (Ter.Type(n.Item1, n.Item2) == Terrain.STEEL) { supported = true; break; }
+                    if (Terrain.Unbreakable(Ter.Type(n.Item1, n.Item2))) { supported = true; break; }
                     if (seen.Add(n)) stack.Push(n);
                 }
             }
@@ -260,6 +266,17 @@ public sealed partial class Game
             f.VY = MathF.Min(f.VY + K.GRAV * dt, 420);
             float ny = f.Y + f.VY * dt;
             int tx = (int)MathF.Floor((f.X + K.HT) / K.T);
+            // tocou no heroi (em qualquer velocidade): se despedaca em vez de esmagar ou prender
+            if (!P.Dead && Hit(f.X + 1, ny, f.X + K.T - 1, ny + K.T, P.X - 3.5f, P.Y - PH, P.X + 3.5f, P.Y))
+            {
+                f.Dead = true;
+                var bc = TileColor(Terrain.TypeOf(f.Tile), Eras.ForCol(tx));
+                for (int k = 0; k < 6; k++) AddPart(PKind.Debris, f.X + R(0, K.T), f.Y + R(4, K.T), R(-90, 90), -R(40, 140), 1.1f, fx.Next(2, 4), bc, 540);
+                for (int k = 0; k < 3; k++) AddPart(PKind.Smoke, f.X + R(0, K.T), f.Y + K.HT, R(-20, 20), -R(5, 20), 0.6f, 2.5f, A(Col.Lerp(bc, White, 0.35f), 0.8f));
+                sfx.Play("hit", 0.6f, 0.6f);
+                shake = MathF.Max(shake, 1.5f);
+                continue;
+            }
             int below = (int)MathF.Floor((ny + K.T) / K.T);
             if (Ter.Solid(tx, below))
             {
@@ -287,16 +304,6 @@ public sealed partial class Game
             foreach (var p in S.Props)
                 if (!p.Done && p.Kind == PropKind.Barrel && p.Fuse < 0 && Hit(f.X, f.Y, f.X + K.T, f.Y + K.T, p.X - 4, p.Y - 10, p.X + 4, p.Y))
                     p.Fuse = 0.05f;
-            // no heroi o bloco se despedaca em vez de esmagar (como no Broforce)
-            if (!P.Dead && Hit(f.X, f.Y, f.X + K.T, f.Y + K.T, P.X - 3, P.Y - 16, P.X + 3, P.Y))
-            {
-                f.Dead = true;
-                var bc = TileColor(Terrain.TypeOf(f.Tile), Eras.ForCol(tx));
-                for (int k = 0; k < 6; k++) AddPart(PKind.Debris, f.X + R(0, K.T), f.Y + R(4, K.T), R(-90, 90), -R(40, 140), 1.1f, fx.Next(2, 4), bc, 540);
-                for (int k = 0; k < 3; k++) AddPart(PKind.Smoke, f.X + R(0, K.T), f.Y + K.HT, R(-20, 20), -R(5, 20), 0.6f, 2.5f, A(Col.Lerp(bc, White, 0.35f), 0.8f));
-                sfx.Play("hit", 0.6f, 0.6f);
-                shake = MathF.Max(shake, 1.5f);
-            }
         }
     }
 
@@ -333,8 +340,13 @@ public sealed partial class Game
             }
         }
         foreach (var p in S.Props)
+        {
             if (!p.Done && p.Kind == PropKind.Barrel && p.Fuse < 0 && MathF.Abs(p.X - x) < r + 4 && MathF.Abs(p.Y - 5 - y) < r + 4)
                 p.Fuse = 0.12f;
+            if (!p.Done && p.Kind == PropKind.Hostage && MathF.Abs(p.X - x) < r && MathF.Abs(p.Y - 8 - y) < r)
+                HitHostage(p, fromPlayer);
+        }
+        RevealNear((int)MathF.Floor(x / K.T), (int)MathF.Floor(y / K.T));
         // explosoes de inimigos e barris machucam o jogador (como no Broforce)
         if (!fromPlayer && !P.Dead)
         {

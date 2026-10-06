@@ -14,6 +14,8 @@ public sealed partial class Game
 {
     int cam;            // camera inteira (pixel perfect) usada no mundo
     float camFrac;      // fracao da camera aplicada na composicao final
+    int camY;           // camera vertical inteira
+    float camFracY;
     int shY;            // tremor vertical
     float time;         // relogio de animacao visual
     int scrOx, scrOy;   // origem da area de jogo na tela
@@ -51,9 +53,13 @@ public sealed partial class Game
 
         Raylib.BeginScissorMode(scrOx, scrOy, dw, dh);
         DrawBackground();
+        // o mundo foi desenhado no canto superior esquerdo da textura, no tamanho da area visivel
+        float ws = scale / S.Zoom;                                   // pixels de tela por pixel do mundo
+        int regW = (int)MathF.Ceiling(ViewW) + 1, regH = (int)MathF.Ceiling(ViewH) + 1;
+        int rtH = worldRT.Texture.Height;
         Raylib.BeginBlendMode(BlendMode.AlphaPremultiply);
-        Raylib.DrawTexturePro(worldRT.Texture, new Rectangle(0, 0, K.W + 1, -K.H),
-            new Rectangle(scrOx - camFrac * scale, scrOy, (K.W + 1) * scale, dh), Vector2.Zero, 0, Color.White);
+        Raylib.DrawTexturePro(worldRT.Texture, new Rectangle(0, rtH - regH, regW, -regH),
+            new Rectangle(scrOx - camFrac * ws, scrOy - camFracY * ws, regW * ws, regH * ws), Vector2.Zero, 0, Color.White);
         Raylib.EndBlendMode();
         Raylib.BeginMode2D(ScreenCam(0));
         DrawOverlay();
@@ -64,7 +70,7 @@ public sealed partial class Game
     Camera2D ScreenCam(float frac) => new() { Offset = new Vector2(scrOx, scrOy), Target = new Vector2(frac, 0), Zoom = scrScale };
 
     int SX(float x) => (int)MathF.Floor(x) - cam;
-    int SY(float y) => (int)MathF.Floor(y) + shY;
+    int SY(float y) => (int)MathF.Floor(y) - camY + shY;
 
     // ================================================================== MUNDO
 
@@ -75,12 +81,15 @@ public sealed partial class Game
         int baseCam = (int)MathF.Floor(S.CamX);
         camFrac = S.CamX - baseCam;
         cam = baseCam + sx;
+        camY = (int)MathF.Floor(S.CamY);
+        camFracY = S.CamY - camY;
 
         DrawTerrain();
         DrawDecals();
         DrawFalling();
         DrawProps();
         DrawEnemies();
+        DrawRooms();
         DrawCorpses();
         DrawTrails();
         DrawGhosts();
@@ -93,44 +102,56 @@ public sealed partial class Game
         DrawPlayer();
         DrawTexts();
         if (S.FreezeT > 0 && mode != Mode.Rewind)
-            Rect(0, 0, K.W + 1, K.H, A(Cyan, 0.10f + 0.04f * MathF.Sin(time * 10)));
+            Rect(0, 0, K.MaxViewW + 2, K.MaxViewH + 2, A(Cyan, 0.10f + 0.04f * MathF.Sin(time * 10)));
     }
 
     // ------------------------------------------------------------------ terreno
 
     void DrawTerrain()
     {
-        int c0 = (int)MathF.Floor(cam / (float)K.T) - 1, c1 = c0 + K.W / K.T + 3;
+        int c0 = (int)MathF.Floor(cam / (float)K.T) - 1, c1 = c0 + (int)(ViewW / K.T) + 3;
+        int r0 = Math.Max(0, (int)MathF.Floor(camY / (float)K.T) - 1), r1 = Math.Min(K.ROWS - 1, r0 + (int)(ViewH / K.T) + 3);
         for (int tx = c0; tx <= c1; tx++)
         {
             var e = Eras.ForCol(tx);
-            for (int ty = 0; ty < K.ROWS; ty++)
+            int ei = Eras.IndexForCol(tx);
+            for (int ty = r0; ty <= r1; ty++)
             {
                 ushort b = Ter.Get(tx, ty);
                 int type = Terrain.TypeOf(b);
-                if (type == 0) continue;
+                if (type == 0)
+                {
+                    // espaco aberto no subsolo: parede de terra escura ao fundo (tuneis, cavernas, buracos cavados)
+                    if (Ter.Underground(tx, ty))
+                        Raylib.DrawTextureRec(Art.Tiles[ei], new Rectangle((int)(Hash.H(tx, ty) % 4) * K.T, 2 * K.T, K.T, K.T),
+                            new Vector2(tx * K.T - cam, ty * K.T - camY + shY), CaveTint);
+                    continue;
+                }
                 DrawTile(tx, ty, type, Terrain.DmgOf(b), Terrain.VarOf(b), Terrain.LookOf(b), e);
             }
             // fenda temporal entre eras
             if (tx % (K.CHUNK * K.CHUNKS_PER_ERA) == 0 && tx > 0)
             {
                 int x = tx * K.T - cam;
-                for (int y = 0; y < K.H; y += 2)
+                for (int y = 0; y < (int)ViewH + 2; y += 2)
                 {
-                    int o = (int)(MathF.Sin(time * 8 + y * 0.3f) * 3);
-                    Rect(x + o - 1, y + shY, 3, 2, A(y % 4 == 0 ? Cyan : Magenta, 0.6f));
-                    if (Hash.F(y, (int)(time * 20)) > 0.85f) Rect(x + o - 4, y + shY, 9, 1, A(White, 0.8f));
+                    int wy = y + camY;
+                    int o = (int)(MathF.Sin(time * 8 + wy * 0.3f) * 3);
+                    Rect(x + o - 1, y + shY, 3, 2, A(wy % 4 == 0 ? Cyan : Magenta, 0.6f));
+                    if (Hash.F(wy, (int)(time * 20)) > 0.85f) Rect(x + o - 4, y + shY, 9, 1, A(White, 0.8f));
                 }
             }
         }
     }
+
+    static readonly Color CaveTint = new(78, 72, 86, 255), BedrockTint = new(120, 116, 132, 255);
 
     /// <summary>A aparencia vem do proprio bloco (decidida ao gerar): nunca muda por causa dos vizinhos.
     /// Os vizinhos so decidem se os enfeites de grama aparecem (nao ha nada em cima).</summary>
     void DrawTile(int tx, int ty, int type, int dmg, int variant, int look, Era e)
     {
         bool open = !Ter.Solid(tx, ty - 1);
-        TileAt(tx * K.T - cam, ty * K.T + shY, tx, ty, type, dmg, variant, Eras.IndexForCol(tx), open, look, true);
+        TileAt(tx * K.T - cam, ty * K.T - camY + shY, tx, ty, type, dmg, variant, Eras.IndexForCol(tx), open, look, true);
     }
 
     /// <summary>Desenha um tile a partir de design/tiles/&lt;era&gt;.png (ver LEIAME na pasta design).</summary>
@@ -138,6 +159,19 @@ public sealed partial class Game
     {
         var tex = Art.Tiles[era];
         uint hsh = Hash.H(tx, ty);
+        if (type == Terrain.BEDROCK)
+        {
+            // rocha-mae: terra funda acinzentada, indestrutivel
+            Raylib.DrawTextureRec(tex, new Rectangle(variant * K.T, 2 * K.T, K.T, K.T), new Vector2(x, y), BedrockTint);
+            return;
+        }
+        if (type == Terrain.DOOR)
+        {
+            // porta: parte de cima (aparencia 0) e de baixo (1), na linha 4 do tileset
+            Raylib.DrawTextureRec(tex, new Rectangle((depth == 0 ? 6 : 7) * K.T, 4 * K.T, K.T, K.T), new Vector2(x, y), Color.White);
+            if (dmg > 0) Raylib.DrawTextureRec(tex, new Rectangle(5 * K.T, 3 * K.T, K.T, K.T), new Vector2(x, y), Color.White);
+            return;
+        }
         (int col, int row) = type switch
         {
             Terrain.DIRT => (variant, depth),
@@ -169,11 +203,11 @@ public sealed partial class Game
 
     void DrawDecals()
     {
-        int left = cam - 2, right = cam + K.W + 2;
+        int left = cam - 2, right = cam + (int)ViewW + 2, top = camY - 2, bottom = camY + (int)ViewH + 2;
         foreach (var d in decals)
         {
-            if (d.X < left || d.X > right) continue;
-            if (Ter.SolidAt(d.X + 0.5f, d.Y + 0.5f)) Rect(d.X - cam, d.Y + shY, 1, 1, d.C);
+            if (d.X < left || d.X > right || d.Y < top || d.Y > bottom) continue;
+            if (Ter.SolidAt(d.X + 0.5f, d.Y + 0.5f)) Rect(d.X - cam, d.Y - camY + shY, 1, 1, d.C);
         }
     }
 
@@ -195,7 +229,7 @@ public sealed partial class Game
         {
             if (p.Done) continue;
             int x = SX(p.X), y = SY(p.Y);
-            if (x < -30 || x > K.W + 30) continue;
+            if (x < -30 || x > ViewW + 30) continue;
             switch (p.Kind)
             {
                 case PropKind.Barrel:
@@ -208,6 +242,14 @@ public sealed partial class Game
                     Art.Cell(Art.Cage, (int)(p.T * 8) % 2, 0, x, y);
                     if (MathF.Sin(p.T * 2.3f) > 0.4f) TextC("SOCORRO!", x, y - 48 - (int)(MathF.Abs(MathF.Sin(p.T * 8)) * 2), 10, White, Ink);
                     break;
+                case PropKind.Hostage:
+                {
+                    // refem de maos para cima; depois de salvo, foge correndo para a esquerda
+                    var an = p.Hp == 2 ? new Anim { S = AState.Run, T = p.T, Speed = 60 } : Anim.Of(AState.Cheer, p.T * 0.5f);
+                    Art.Human(Art.Hostage, x, y, p.Hp == 2 ? -1 : 1, an);
+                    if (p.Hp == 1 && ((int)(time * 2) & 1) == 0 && !InHiddenRoom(p.X, p.Y - 8)) TextC("REFEM", x, y - 30, 10, White, Ink);
+                    break;
+                }
                 case PropKind.Glorb:
                     Art.Cell(Art.Glorb, (int)(p.T * 5) % 4, 0, x, y + (int)MathF.Round(MathF.Sin(p.T * 3) * 2));
                     break;
@@ -223,7 +265,7 @@ public sealed partial class Game
         {
             if (e.Dead) continue;
             int x = SX(e.X), y = SY(e.Y);
-            if (x < -30 || x > K.W + 30) continue;
+            if (x < -30 || x > ViewW + 30) continue;
             var era = Eras.ForX(e.X);
             int ei = Eras.IndexForX(e.X);
             bool hurt = e.HurtT > 0.05f;
@@ -241,7 +283,7 @@ public sealed partial class Game
                 {
                     Anim an;
                     int hop = 0;
-                    if (e.HurtT > 0) an = Anim.Of(AState.Hurt, e.AnimT);
+                    if (e.HurtT > 0 || e.StunT > 0) an = Anim.Of(AState.Hurt, e.AnimT);
                     else if (e.AlertT > 0)
                     {
                         an = Anim.Of(AState.Jump, e.AnimT);
@@ -249,7 +291,15 @@ public sealed partial class Game
                     }
                     else an = Anim.FromPhysics(e.OnGround, false, e.VX, e.VY, e.AnimT, e.LandT);
                     an.Recoil = e.MuzzleT > 0 ? 1 : 0;
-                    Art.Human(Art.Grunts[ei, (int)e.Kind], x, y - hop, e.Facing, an, 1, over, tint);
+                    bool fuse = e.FuseT >= 0 && (int)(time * 14) % 2 == 0;
+                    Art.Human(Art.Grunts[ei, DesignExport.GruntIndex(e.Kind)], x, y - hop, e.Facing, an, 1, fuse ? Red : over, tint);
+                    if (e.StunT > 0)
+                        for (int k = 0; k < 3; k++)
+                        {
+                            // estrelinhas girando sobre a cabeca (atordoado)
+                            float a = time * 7 + k * 2.09f;
+                            Rect(x + (int)(MathF.Cos(a) * 6), y - 23 + (int)(MathF.Sin(a) * 2), 2, 2, k == 0 ? White : Yellow);
+                        }
                     break;
                 }
             }
@@ -268,6 +318,17 @@ public sealed partial class Game
                 Rect(x - 7, top, 14, 2, A(Ink, 0.45f));
                 Rect(x - 7, top, 14 * e.Hp / max, 2, Red);
             }
+        }
+    }
+
+    /// <summary>Salas de predio ainda nao reveladas ficam no breu (some aos poucos ao revelar).</summary>
+    void DrawRooms()
+    {
+        foreach (var r in S.Rooms)
+        {
+            if (r.Fade <= 0) continue;
+            int x = r.X0 * K.T - cam, y = r.Y0 * K.T - camY + shY;
+            Rect(x, y, (r.X1 - r.X0 + 1) * K.T, (r.Y1 - r.Y0 + 1) * K.T, A(Hex(0x0c0a12), r.Fade));
         }
     }
 
@@ -514,28 +575,31 @@ public sealed partial class Game
 
     void DrawBackground()
     {
-        int ei = Eras.IndexForX(S.CamX + K.W * 0.5f);
+        int ei = Eras.IndexForX(S.CamX + ViewW * 0.5f);
         var e = Eras.All[ei];
-        Raylib.BeginMode2D(ScreenCam(0));
-        Raylib.DrawTexture(Art.Sky[ei], 0, 0, Color.White);
+        float vw = ViewW, vh = ViewH;
+        Raylib.BeginMode2D(new Camera2D { Offset = new Vector2(scrOx, scrOy), Zoom = scrScale / S.Zoom });
+        var sky = Art.Sky[ei];
+        Raylib.DrawTexturePro(sky, new Rectangle(0, 0, sky.Width, sky.Height), new Rectangle(0, 0, vw + 1, vh + 1), Vector2.Zero, 0, Color.White);
         if (e.Style is BgStyle.Medieval or BgStyle.Future)
             for (int i = 0; i < 50; i++)
             {
-                float x = (Hash.F(i, 3) * K.W * 2 - S.CamX * 0.02f) % K.W; if (x < 0) x += K.W;
+                float x = (Hash.F(i, 3) * vw * 2 - S.CamX * 0.02f) % vw; if (x < 0) x += vw;
                 int y = (int)(Hash.F(i, 4) * 90);
                 bool tw = Hash.F(i, 5) > 0.7f && MathF.Sin(time * 3 + i) > 0.5f;
                 Raylib.DrawRectangleRec(new Rectangle(MathF.Floor(x), y, 1, 1), A(White, tw ? 1f : 0.55f));
             }
-        // camadas de parallax (posicao em float = rolagem suave sub-pixel)
-        BgLayer(Art.Far[ei], S.CamX * 0.12f);
-        BgLayer(Art.Mid[ei], S.CamX * 0.35f);
+        // parallax: as camadas sobem um pouco quando a camera desce (e vice-versa)
+        float camY0 = Ground0 * K.T - K.H * 0.68f;
+        BgLayer(Art.Far[ei], S.CamX * 0.12f, (camY0 - S.CamY) * 0.15f, vw, vh, e.Far);
+        BgLayer(Art.Mid[ei], S.CamX * 0.35f, (camY0 - S.CamY) * 0.3f, vw, vh, e.Mid);
 
         // particulas de ambiente (folhas, cinzas, vagalumes, chuva neon)
         for (int i = 0; i < 30; i++)
         {
             float speed = 10 + Hash.F(i, 9) * 20;
-            float px = (Hash.F(i, 7) * K.W * 3 - S.CamX * 0.6f - time * speed) % K.W; if (px < 0) px += K.W;
-            float py = (Hash.F(i, 8) * K.H + time * speed * (e.Style == BgStyle.Future ? 6 : 0.8f)) % K.H;
+            float px = (Hash.F(i, 7) * vw * 3 - S.CamX * 0.6f - time * speed) % vw; if (px < 0) px += vw;
+            float py = (Hash.F(i, 8) * vh + time * speed * (e.Style == BgStyle.Future ? 6 : 0.8f)) % vh;
             px = MathF.Round(px * 2) / 2; py = MathF.Round(py * 2) / 2;
             switch (e.Style)
             {
@@ -544,7 +608,7 @@ public sealed partial class Game
                     Raylib.DrawRectangleRec(new Rectangle(px, ly, MathF.Sin(time * 3 + i) > 0 ? 2 : 1, 1), A(e.Top, 0.75f));
                     break;
                 case BgStyle.Dino:
-                    Raylib.DrawRectangleRec(new Rectangle(px, K.H - py, 1, 1), A(i % 3 == 0 ? Yellow : Orange, 0.85f));
+                    Raylib.DrawRectangleRec(new Rectangle(px, vh - py, 1, 1), A(i % 3 == 0 ? Yellow : Orange, 0.85f));
                     break;
                 case BgStyle.Medieval:
                     if (MathF.Sin(time * 3 + i * 1.7f) > 0) Raylib.DrawRectangleRec(new Rectangle(px, py * 0.7f + 40, 1, 1), Yellow);
@@ -557,12 +621,15 @@ public sealed partial class Game
         Raylib.EndMode2D();
     }
 
-    static void BgLayer(Texture2D t, float scroll)
+    /// <summary>Camada de parallax repetida na horizontal; abaixo dela preenche com a propria cor.</summary>
+    static void BgLayer(Texture2D t, float scroll, float dy, float vw, float vh, Color fill)
     {
         if (t.Width <= 0) return;
+        float y = vh - t.Height + dy;
         float off = scroll % t.Width;
-        for (float x = -off; x < K.W + 1; x += t.Width)
-            Raylib.DrawTextureV(t, new Vector2(x, K.H - t.Height), Color.White);
+        for (float x = -off; x < vw + 1; x += t.Width)
+            Raylib.DrawTextureV(t, new Vector2(x, y), Color.White);
+        if (y + t.Height < vh + 1) Raylib.DrawRectangleRec(new Rectangle(0, y + t.Height, vw + 1, vh + 1 - (y + t.Height)), fill);
     }
 
     // ================================================================== HUD e telas (tela, grade de pixels)

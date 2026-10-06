@@ -20,6 +20,8 @@ static class Tune
     public const float TurretRest = 3.0f;
     public const float TurretRange = 150;
     public const float BombRest = 2.6f;         // intervalo das bombas dos voadores
+    public const float ScrollMax = 70;          // velocidade maxima da tela (heroi mais lento corre a 80)
+    public const float UndergroundScroll = 0.55f; // fator da velocidade da tela no subsolo
     public const float ShotGap = 0.7f;          // intervalo minimo entre tiros de QUALQUER inimigo (um atira por vez)
 
     // Chance de um bloco cair quando o de baixo e destruido, se ele estiver preso a outro bloco pelos lados.
@@ -45,6 +47,7 @@ public sealed partial class Game
         UpdateExplosions();
         ProcessCollapse();
         UpdateFalling();
+        UpdateRooms();
         Cleanup();
         CheckEra();
 
@@ -53,12 +56,44 @@ public sealed partial class Game
         Ter.Trim(hist[0].Frame, (int)(hist[0].CamX / K.T) - 40);
     }
 
+    /// <summary>Tamanho da area visivel do mundo (cresce quando a camera afasta o zoom).</summary>
+    float ViewW => K.W * S.Zoom;
+    float ViewH => K.H * S.Zoom;
+
     void UpdateCamera()
     {
-        // corrida infinita: a camera avanca sozinha e acelera com a distancia
-        S.Speed = 34 + MathF.Min(62f, Meters * 0.03f);
+        // corrida infinita: a camera avanca sozinha e acelera com a distancia,
+        // mas nunca mais rapido que o heroi mais lento (sempre da para alcancar)
+        float baseSpeed = 34 + MathF.Min(Tune.ScrollMax - 34, Meters * 0.03f);
+        // elastico: se o heroi ficou para tras (ex.: saindo de um buraco), a tela espera por ele
+        float rel = P.Dead ? 0.5f : (P.X - S.CamX) / ViewW;
+        float wait = Math.Clamp((rel - 0.06f) / (0.46f - 0.06f), 0.08f, 1f);
+        // no subsolo (cavernas/tuneis) a tela anda mais devagar para dar tempo de explorar
+        bool below = !P.Dead && Ter.Underground((int)MathF.Floor(P.X / K.T), (int)MathF.Floor((P.Y - 4) / K.T));
+        S.Speed = baseSpeed * wait * (below ? Tune.UndergroundScroll : 1f);
         S.CamX += S.Speed * K.DT;
         if (!P.Dead && P.X > S.CamX + K.W * 0.58f) S.CamX = P.X - K.W * 0.58f;
+
+        // zoom: afasta no subsolo (cavernas/tuneis) e em quedas longas, para mostrar mais do cenario
+        if (!P.Dead)
+        {
+            int ptx = (int)MathF.Floor(P.X / K.T), pty = (int)MathF.Floor((P.Y - 4) / K.T);
+            bool hasFloor = Ter.Surface(ptx) >= 0;                       // buraco sem fundo nao conta
+            bool under = hasFloor && Ter.Underground(ptx, pty);
+            bool longFall = hasFloor && !P.OnGround && P.VY > 220;
+            float zt = under || longFall ? K.ZOOM_OUT : 1f;
+            S.Zoom = Approach(S.Zoom, zt, K.DT * (zt > S.Zoom ? 0.9f : 0.6f));
+        }
+        FollowY(P.Dead ? S.CamY + ViewH * 0.68f : P.Y, 5f);
+    }
+
+    /// <summary>Camera vertical suave: o alvo fica um pouco abaixo do meio da tela.</summary>
+    void FollowY(float targetY, float speed)
+    {
+        // na superficie o heroi fica mais baixo na tela (mais ceu); com zoom afastado, mais ao centro
+        float zoomK = (S.Zoom - 1) / (K.ZOOM_OUT - 1);
+        float ty = Math.Clamp(targetY - ViewH * (0.68f - 0.13f * zoomK), 0, K.ROWS * K.T - ViewH);
+        S.CamY += (ty - S.CamY) * (1 - MathF.Exp(-speed * K.DT));
     }
 
     void CheckEra()
@@ -140,10 +175,15 @@ public sealed partial class Game
 
     // ------------------------------------------------------------------ jogador
 
+    /// <summary>Altura da caixa de colisao do heroi: um pouco menor que 1 bloco, para passar com folga
+    /// por vaos de 1 bloco de altura (o sprite continua com 18px).</summary>
+    const float PH = 14f;
+
     void UpdatePlayer(InputState i)
     {
         var p = P;
         if (p.Dead) return;
+        if (Overlaps(p.X, p.Y, 3.5f, PH)) Unstick(p);
         var ch = Chars.All[p.Char];
         float dt = K.DT;
         p.AnimT += dt; p.FireT -= dt; p.InvulnT -= dt; p.MuzzleT -= dt; p.Coyote -= dt; p.LandT -= dt;
@@ -214,9 +254,12 @@ public sealed partial class Game
             if (p.Char == 4) { p.DashT = 0.16f; p.VX = p.Facing * 430; p.InvulnT = MathF.Max(p.InvulnT, 0.3f); }
         }
 
+        if (p.DashT <= 0) TryKick(p, dir);
+        float preVY = p.VY;
         bool wasGround = p.OnGround;
-        p.OnGround = MoveBody(ref p.X, ref p.Y, ref p.VX, ref p.VY, 3.5f, 16, out _);
+        p.OnGround = MoveBody(ref p.X, ref p.Y, ref p.VX, ref p.VY, 3.5f, PH, out _);
         if (wasGround && !p.OnGround && p.VY >= 0) p.Coyote = 0.08f;
+        TryStomp(p, preVY);
         if (!wasGround && p.OnGround)
         {
             p.LandT = 0.1f;
@@ -236,10 +279,10 @@ public sealed partial class Game
         {
             p.X = S.CamX + 4;
             if (p.VX < 0) p.VX = 0;
-            if (Overlaps(p.X, p.Y, 3.5f, 16))
+            if (Overlaps(p.X, p.Y, 3.5f, PH))
             {
                 int up = 1;
-                while (up <= K.T * 5 && Overlaps(p.X, p.Y - up, 3.5f, 16)) up++;
+                while (up <= K.T * 5 && Overlaps(p.X, p.Y - up, 3.5f, PH)) up++;
                 if (up <= K.T * 5)
                 {
                     p.Y -= up; p.VY = MathF.Min(p.VY, -60);
@@ -248,7 +291,7 @@ public sealed partial class Game
                 else KillPlayer(0, "ESMAGADO PELO TEMPO");
             }
         }
-        if (p.X > S.CamX + K.W - 6) { p.X = S.CamX + K.W - 6; p.VX = MathF.Min(p.VX, 0); }
+        if (p.X > S.CamX + ViewW - 6) { p.X = S.CamX + ViewW - 6; p.VX = MathF.Min(p.VX, 0); }
         if (p.Y > K.ROWS * K.T + 30) { KillPlayer(0, "CAIU NO VAZIO TEMPORAL"); }
 
         rec?.Frames.Add(new GFrame
@@ -256,6 +299,19 @@ public sealed partial class Game
             X = p.X, Y = p.Y, VX = p.VX, VY = p.VY, Facing = (sbyte)p.Facing, OnGround = p.OnGround, Climbing = p.Climbing,
             Fire = fired, Special = special,
         });
+    }
+
+    /// <summary>Seguranca: se o heroi ficar dentro de um bloco, empurra para o espaco livre mais proximo.</summary>
+    void Unstick(Player p)
+    {
+        for (int d = 1; d <= K.T * 3; d++)
+            foreach (var (ox, oy) in new[] { (0, -d), (d, 0), (-d, 0), (0, d) })
+                if (!Overlaps(p.X + ox, p.Y + oy, 3.5f, PH))
+                {
+                    p.X += ox; p.Y += oy;
+                    if (oy < 0) p.VY = MathF.Min(p.VY, 0);
+                    return;
+                }
     }
 
     static float Approach(float v, float t, float d) => v < t ? MathF.Min(v + d, t) : MathF.Max(v - d, t);
@@ -427,12 +483,12 @@ public sealed partial class Game
         bool frozen = S.FreezeT > 0;
         if (frozen) S.FreezeT -= dt;
         if (S.ShotCD > 0 && !frozen) S.ShotCD -= dt;
-        var era = Eras.ForX(S.CamX + K.W / 2f);
+        var era = Eras.ForX(S.CamX + ViewW / 2f);
 
         for (int n = 0; n < S.Enemies.Count; n++)
         {
             var e = S.Enemies[n];
-            if (e.Dead || e.X > S.CamX + K.W + 20) continue;
+            if (e.Dead || e.X > S.CamX + ViewW + 20) continue;
             e.HurtT -= dt; e.MuzzleT -= dt;
             if (frozen) continue;
             e.AnimT += dt;
@@ -472,6 +528,10 @@ public sealed partial class Game
                     }
                     break;
                 }
+                case EnemyKind.Knife:
+                case EnemyKind.Bomber:
+                    UpdateCharger(e);
+                    break;
                 default:
                     UpdateGrunt(e, gunY, era);
                     break;
@@ -483,12 +543,15 @@ public sealed partial class Game
     void UpdateGrunt(Enemy e, float gunY, Era era)
     {
         float dt = K.DT;
+        if (StunTick(e)) return;
         float walk = e.Kind == EnemyKind.Brute ? 12 : 20;
         e.VY = MathF.Min(e.VY + K.GRAV * dt, 400);
+        bool hidden = InHiddenRoom(e.X, e.Y - 8);            // numa sala escura nao enxerga o heroi
+        if (hidden) e.Alerted = false;
 
         if (!e.Alerted)
         {
-            if (e.AlertT <= 0 && OnScreen(e) && FindTarget(e.X, gunY, Tune.SeeRange, 32, out float tx, out _) &&
+            if (e.AlertT <= 0 && !hidden && OnScreen(e) && FindTarget(e.X, gunY, Tune.SeeRange, 32, out float tx, out _) &&
                 (MathF.Sign(tx - e.X) == e.Facing || MathF.Abs(tx - e.X) < Tune.SeeBehind))
             {
                 e.AlertT = Tune.AlertTime; e.Facing = tx < e.X ? -1 : 1;
@@ -564,7 +627,8 @@ public sealed partial class Game
     }
 
     /// <summary>Tiro inimigo. Soldados atiram so para frente/tras; apenas torretas (aim) miram na diagonal.</summary>
-    bool OnScreen(Enemy e) => e.X > S.CamX + Tune.ScreenMargin && e.X < S.CamX + K.W - Tune.ScreenMargin;
+    bool OnScreen(Enemy e) => e.X > S.CamX + Tune.ScreenMargin && e.X < S.CamX + ViewW - Tune.ScreenMargin
+        && e.Y > S.CamY + 4 && e.Y - 10 < S.CamY + ViewH;
 
     void EnemyShoot(Enemy e, float x, float y, float tx, float ty, float speed, Era era, bool aim = false)
     {
@@ -614,6 +678,9 @@ public sealed partial class Game
                         for (int k = 0; k < 20; k++) AddPart(PKind.Pixel, p.X, p.Y - 12, fx.Next(-90, 90), -fx.Next(40, 160), 0.8f, 2, k % 2 == 0 ? Hex(0x9a9aa8) : Yellow, 400);
                         flash = 0.25f;
                     }
+                    break;
+                case PropKind.Hostage:
+                    UpdateHostage(p);
                     break;
                 case PropKind.Glorb:
                     if (!P.Dead && MathF.Abs(P.X - p.X) < 9 && MathF.Abs(P.Y - 10 - p.Y) < 12)
@@ -688,7 +755,7 @@ public sealed partial class Game
                         if (b.ExplodeR > 0) { b.Dead = true; Explode(b.X, b.Y, b.ExplodeR, true, b.OwnerId); break; }
                         DamageTile(tx, ty, b.Dmg);
                         // o laser atravessa terreno (menos aco)
-                        if (b.Kind == BulletKind.Laser && Ter.Type(tx, ty) != Terrain.STEEL) continue;
+                        if (b.Kind == BulletKind.Laser && !Terrain.Unbreakable(Ter.Type(tx, ty))) continue;
                         b.Dead = true;
                         break;
                     }
@@ -699,7 +766,7 @@ public sealed partial class Game
                 }
                 BulletEntityHits(b);
             }
-            if (b.X < S.CamX - 40 || b.X > S.CamX + K.W + 60 || b.Y > K.ROWS * K.T + 20 || b.Y < -120) b.Dead = true;
+            if (b.X < S.CamX - 40 || b.X > S.CamX + ViewW + 60 || b.Y > K.ROWS * K.T + 20 || b.Y < -120) b.Dead = true;
         }
     }
 
@@ -710,13 +777,21 @@ public sealed partial class Game
         {
             foreach (var e in S.Enemies)
             {
-                if (e.Dead || e.Id == b.LastHit || e.X > S.CamX + K.W + 20) continue;
+                if (e.Dead || e.Id == b.LastHit || e.X > S.CamX + ViewW + 20) continue;
                 var (x0, y0, x1, y1) = e.Box;
                 if (!Hit(bx0, by0, bx1, by1, x0, y0, x1, y1)) continue;
                 if (b.ExplodeR > 0) { b.Dead = true; Explode(b.X, b.Y, b.ExplodeR, true, b.OwnerId); return; }
                 HitEnemy(e, b.Dmg, MathF.Sign(b.VX) * 1.5f);
                 AddPart(PKind.Flash, b.X, b.Y, 0, 0, 0.05f, 3, White);
                 if (b.Pierce) b.LastHit = e.Id; else { b.Dead = true; return; }
+            }
+            foreach (var p in S.Props)
+            {
+                if (p.Done || p.Kind != PropKind.Hostage) continue;
+                if (!Hit(bx0, by0, bx1, by1, p.X - 4, p.Y - 14, p.X + 4, p.Y)) continue;
+                if (b.ExplodeR > 0) { b.Dead = true; Explode(b.X, b.Y, b.ExplodeR, true, b.OwnerId); return; }
+                HitHostage(p, true);
+                if (!b.Pierce) { b.Dead = true; return; }
             }
             foreach (var p in S.Props)
             {
@@ -731,7 +806,7 @@ public sealed partial class Game
         }
         else
         {
-            if (!P.Dead && mode == Mode.Play && Hit(bx0, by0, bx1, by1, P.X - 3, P.Y - 16, P.X + 3, P.Y))
+            if (!P.Dead && mode == Mode.Play && Hit(bx0, by0, bx1, by1, P.X - 3, P.Y - PH, P.X + 3, P.Y))
             {
                 if (P.InvulnT > 0 || P.DashT > 0) return;
                 b.Dead = true;
@@ -752,10 +827,12 @@ public sealed partial class Game
         float bx0 = b.X - b.W / 2, by0 = b.Y - b.H / 2, bx1 = b.X + b.W / 2, by1 = b.Y + b.H / 2;
         foreach (var e in S.Enemies)
         {
-            if (e.Dead || e.X > S.CamX + K.W + 20) continue;
+            if (e.Dead || e.X > S.CamX + ViewW + 20) continue;
             var (x0, y0, x1, y1) = e.Box;
             if (Hit(bx0, by0, bx1, by1, x0, y0, x1, y1) && e.HurtT <= 0) { e.HitDir = MathF.Sign(e.X - b.X + 0.01f); HitEnemy(e, b.Dmg, 0); }
         }
+        foreach (var p in S.Props)
+            if (!p.Done && p.Kind == PropKind.Hostage && Hit(bx0, by0, bx1, by1, p.X - 4, p.Y - 14, p.X + 4, p.Y)) HitHostage(p, true);
         // a katana rebate balas inimigas
         foreach (var o in S.Bullets)
         {

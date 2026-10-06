@@ -42,7 +42,7 @@ public sealed partial class Game
     public void Run()
     {
         // 1 coluna extra para o deslocamento sub-pixel da camera
-        var rt = Raylib.LoadRenderTexture(K.W + 1, K.H);
+        var rt = Raylib.LoadRenderTexture(K.MaxViewW + 2, K.MaxViewH + 2);
         Raylib.SetTextureFilter(rt.Texture, TextureFilter.Point);
         double acc = 0;
         while (!Raylib.WindowShouldClose() && !quit)
@@ -94,6 +94,8 @@ public sealed partial class Game
                 titleT += K.DT;
                 S.CamX += 40 * K.DT;
                 EnsureChunks();
+                int srow = Ter.Surface((int)((S.CamX + K.W * 0.5f) / K.T));
+                FollowY((srow > 0 ? srow : Ground0) * K.T, 2f);
                 foreach (var p in S.Props) p.T += K.DT;
                 foreach (var e in S.Enemies) e.AnimT += K.DT;
                 if (i.Confirm && modeT > 0.3f) { sfx.Play("spawn"); NewRun(); }

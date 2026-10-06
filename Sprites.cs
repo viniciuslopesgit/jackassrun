@@ -113,6 +113,50 @@ public static class Sprites
             "HH.sSdms..",
             "HH.mssss..",
         },
+        new[] { // 9 civil: cabelo curto penteado
+            "..........",
+            "..........",
+            "..HHHHHH..",
+            ".HHHHHHHH.",
+            ".HHSSSSSS.",
+            "..sSSSESS.",
+            "..sSSSSSs.",
+            "..ssSdms..",
+            "...mssss..",
+        },
+        new[] { // 10 capuz de morcego (orelhas, olhos brancos, queixo a mostra)
+            "..H....H..",
+            "..HH..HH..",
+            "..HHHHHH..",
+            ".HHHHHHHH.",
+            ".HHHHHWWH.",
+            ".HHHHSSSS.",
+            "..HHSSSSs.",
+            "..HHSdms..",
+            "...mssss..",
+        },
+        new[] { // 11 aventureira: cabelo preso (o rabo de cavalo balanca a parte)
+            "..........",
+            "..HHHHH...",
+            ".HHHHHHH..",
+            "HHHHSSSSS.",
+            "HHHsSSESS.",
+            "HHHsSSSSs.",
+            ".H.ssSdms.",
+            "...mssss..",
+            "..........",
+        },
+        new[] { // 12 mascara de aranha (vermelha, olhos brancos grandes, linhas de teia)
+            "..........",
+            "...HHHH...",
+            "..HHKHHH..",
+            ".HHHKHHHH.",
+            ".HKHHWWWH.",
+            ".HHKHWWWH.",
+            "..HHKHHH..",
+            "..HHHKHH..",
+            "...HHHH...",
+        },
     };
     public const int HeadX = -4, HeadY = -19;
 
@@ -204,6 +248,25 @@ public static class Sprites
             ".S..gGGGGGGGGGGGG.",
             "....gg............",
         }, -6, -8, 12, -7),
+        // 7 nenhuma arma (refens)
+        new(Array.Empty<string>(), 0, 0, 0, 0),
+        // 8 faca
+        new(new[] {
+            "...WW",
+            ".SSM.",
+        }, 3, -8, 8, -8),
+        // 9 detonador do homem-bomba
+        new(new[] {
+            ".R",
+            "SG",
+        }, 3, -8, 5, -8),
+        // 10 pistolas duplas (uma em cada mao)
+        new(new[] {
+            "...gGGGG",
+            "..SSg...",
+            ".gGGGG..",
+            "SSg.....",
+        }, 2, -9, 9, -9),
     };
 
     public static Gun GunOf(in Look l) => Guns[Math.Min(l.Wpn, (byte)(Guns.Length - 1))];
@@ -213,16 +276,18 @@ public static partial class Gfx
 {
     static readonly Color BeltBrown = Hex(0x734122), AmmoGrey = Hex(0x717571), EyeDark = Hex(0x2a1410);
 
+    static bool bodyPass;      // desenhando tronco/maos: 'S' vira a cor do uniforme quando SuitArms
+
     static Color PixColor(char ch, in Look L, bool blink) => ch switch
     {
         'H' => L.Hair, 'h' => Mul(L.Hair, 0.68f),
-        'S' => L.Skin, 's' => Mul(L.Skin, 0.86f), 'm' => Mul(L.Skin, 0.58f), 'd' => Mul(L.Skin, 0.42f),
+        'S' => bodyPass && L.SuitArms ? L.Arms : L.Skin, 's' => Mul(bodyPass && L.SuitArms ? L.Arms : L.Skin, 0.86f), 'm' => Mul(L.Skin, 0.58f), 'd' => Mul(L.Skin, 0.42f),
         'E' => blink ? Mul(L.Skin, 0.86f) : EyeDark,
         'R' => L.Accent, 'r' => Mul(L.Accent, 0.62f),
         'V' => L.Shirt, 'v' => Mul(L.Shirt, 0.72f),
         'P' => L.Pants, 'p' => Mul(L.Pants, 0.72f),
         'B' => L.Boots,
-        'L' => BeltBrown, 'l' => AmmoGrey,
+        'L' => L.CustomBelt ? L.Belt : BeltBrown, 'l' => L.CustomBelt ? Mul(L.Belt, 0.8f) : AmmoGrey,
         'G' => L.Gun, 'g' => Mul(L.Gun, 0.65f), 'M' => Col.Lerp(L.Gun, White, 0.35f),
         'f' => Mul(L.Shirt, 0.6f),
         'W' => White, 'K' => Ink,
@@ -341,6 +406,19 @@ public static partial class Gfx
         int B = L.Bulk;
         int hipY = -4 + bob;
 
+        // --- capa (atras de tudo), abre com o movimento
+        if (L.Cape)
+        {
+            var cc = Mul(L.Hair, 0.9f); var cl = Mul(L.Hair, 1.35f);
+            int topY = -13 + bob;
+            for (int y = topY; y <= -1; y++)
+            {
+                int k = y - topY;
+                int w = 2 + k / 2 + (int)(flow * k / 3) + (int)MathF.Round(MathF.Sin(t * 12 + k * 0.6f) * flow * 1.4f);
+                P(-3 - w + lean, y, w + 1, 1, k % 4 == 1 ? cl : cc);
+            }
+        }
+
         // --- pernas
         PixLeg(-3 - B, bOff, bLift, hipY, Mul(L.Pants, 0.72f), Mul(L.Boots, 0.9f));
         PixLeg(1 + B, fOff, fLift, hipY, L.Pants, L.Boots);
@@ -349,9 +427,11 @@ public static partial class Gfx
 
         // --- tronco (com bracos)
         offX = lean; offY = bob;
+        bodyPass = true;
         if (up) Grid(Sprites.TorsoUp, Sprites.TorsoX, Sprites.TorsoUpY, L, blink, B, -8);
         else Grid(Sprites.TorsoHold, Sprites.TorsoX, Sprites.TorsoHoldY, L, blink, B, -8);
 
+        bodyPass = false;
         // --- cabeca
         offX = lean + headDX; offY = bob + headDY - B;
         var head = Sprites.Heads[Math.Min(L.Hat, (byte)(Sprites.Heads.Length - 1))];
@@ -369,13 +449,21 @@ public static partial class Gfx
         }
         else if (L.Hat == 8 && flow > 0.5f)
             P(-5, -15 + (w0 > 0 ? 1 : 0), 1, 4 + w1, L.Hair);
+        else if (L.Hat == 11)
+        {
+            // rabo de cavalo balancando
+            P(-5, -17, 2, 2, L.Hair);
+            P(-6 - (flow > 0.5f ? 1 : 0), -16 + w0, 2, 5 + w1, Mul(L.Hair, 0.85f));
+        }
 
         // --- arma (inclui as maos)
         if (!noGun)
         {
             var g = Sprites.GunOf(L);
             offX = lean - (int)a.Recoil; offY = bob;
+            bodyPass = true;
             Grid(g.Rows, g.X, g.Y, L, blink, B);
+            bodyPass = false;
         }
         offX = offY = 0;
 

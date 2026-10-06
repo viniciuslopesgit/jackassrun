@@ -8,7 +8,9 @@ public static class K
     public const int W = 320, H = 180;          // resolucao interna (pixel art), escalada na janela
     public const int T = 16;                    // tamanho do bloco (heroi ~ ate o ombro, como no Broforce)
     public const int HT = T / 2;
-    public const int ROWS = 12;                 // linhas de blocos do mundo
+    public const int ROWS = 26;                 // linhas de blocos do mundo (ceu, superficie e subsolo)
+    public const float ZOOM_OUT = 4f / 3f;      // zoom afastado (cavernas/quedas): 4x -> 3x na tela, pixels nitidos
+    public static readonly int MaxViewW = (int)MathF.Ceiling(W * ZOOM_OUT), MaxViewH = (int)MathF.Ceiling(H * ZOOM_OUT);
     public const int CHUNK = 20;                // colunas por chunk gerado (320 px)
     public const int PX_PER_M = 8;              // pixels por metro no placar
     public const int CHUNKS_PER_ERA = 5;        // chunks ate trocar de era

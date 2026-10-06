@@ -10,7 +10,20 @@ public static class DesignExport
 {
     public static readonly string[] EraSlug = { "selva", "jurassico", "medieval", "futuro" };
     public static readonly string[] HeroSlug = { "jean_rockfire", "shotgun_sheila", "doc_chrono", "blastronauta", "naomi_katana" };
-    public static readonly string[] GruntSlug = { "soldado", "bazuqueiro", "brutamontes" };
+    public static readonly string[] GruntSlug = { "soldado", "bazuqueiro", "brutamontes", "faca", "homem_bomba" };
+
+    /// <summary>Indice da folha de cada tipo de inimigo a pe (soldado, bazuqueiro, brutamontes, faca, homem-bomba).</summary>
+    public static int GruntIndex(EnemyKind k) => k switch
+    {
+        EnemyKind.Rocketeer => 1, EnemyKind.Brute => 2, EnemyKind.Knife => 3, EnemyKind.Bomber => 4, _ => 0,
+    };
+
+    /// <summary>Refem: civil de camisa branca e gravata, sem arma.</summary>
+    public static readonly Look HostageLook = new()
+    {
+        Skin = Hex(0xe8b890), Hair = Hex(0x4a3020), Shirt = Hex(0xe8e8ee), Pants = Hex(0x3a4058), Boots = Hex(0x2a1e18),
+        Gun = Hex(0x404040), Accent = Hex(0xc02030), Hat = 9, Wpn = 7,
+    };
 
     // Folha de personagem: celulas de 32x26, pes no pixel (14, 24) de cada celula.
     public const int CW = 32, CH = 26, AX = 14, AY = 24, Cols = 6, Rows = 5;
@@ -34,6 +47,9 @@ public static class DesignExport
         };
         if (k == EnemyKind.Rocketeer) { l.Wpn = 4; l.GunLen = 9; l.GunH = 3; l.Gun = Mul(e.EAccent, 0.7f); l.Shirt = Mul(e.EShirt, 0.8f); }
         if (k == EnemyKind.Brute) { l.Wpn = 6; l.Bulk = 1; l.GunLen = 9; l.GunH = 3; l.Shirt = Col.Lerp(e.EShirt, Red, 0.35f); }
+        if (k == EnemyKind.Knife) { l.Wpn = 8; l.Gun = Hex(0xb0b8c0); l.Shirt = Mul(e.EShirt, 0.65f); }
+        // homem-bomba: colete de dinamite vermelho e detonador na mao
+        if (k == EnemyKind.Bomber) { l.Wpn = 9; l.Gun = Hex(0x505058); l.Accent = Red; l.Shirt = Hex(0xb8281c); }
         return l;
     }
 
@@ -56,9 +72,9 @@ public static class DesignExport
         for (int e = 0; e < Eras.All.Length; e++)
         {
             var era = Eras.All[e];
-            for (int k = 0; k < 3; k++)
+            for (int k = 0; k < GruntSlug.Length; k++)
             {
-                var look = EnemyLook(era, (EnemyKind)k);
+                var look = EnemyLook(era, k switch { 3 => EnemyKind.Knife, 4 => EnemyKind.Bomber, _ => (EnemyKind)k });
                 Need(GruntPath(root, e, k), CW * Cols, CH * Rows, () => CharSheet(look));
             }
             Need(FlyerPath(root, e), 32 * 4, 24, () => { for (int f = 0; f < 4; f++) Flyer(16 + f * 32, 12, 1, era, f / 14f + 0.001f, null); });
@@ -72,6 +88,7 @@ public static class DesignExport
             Need(BgPath(root, e, "fundo"), BgLoop, K.H, () => FarLayer(era));
             Need(BgPath(root, e, "meio"), BgLoop, K.H, () => MidLayer(era));
         }
+        Need(PropPath(root, "refem"), CW * Cols, CH * Rows, () => CharSheet(HostageLook));
         Need(PropPath(root, "barril"), 32, 16, () => { Barrel(8, 15, false, 0); Barrel(24, 15, true, 0); });
         Need(PropPath(root, "glorb"), 64, 16, () => { for (int f = 0; f < 4; f++) Glorb(8 + f * 16, 8, f * 0.26f); });
         Need(PropPath(root, "jaula"), 64, 48, () => { CageBars(16, 47, 0f); CageBars(48, 47, 0.13f); });
@@ -199,6 +216,7 @@ public static class DesignExport
         Brick(0, 3 * T, e, 0); Brick(T, 3 * T, e, 1);
         Steel(2 * T, 3 * T, e); Crate(3 * T, 3 * T);
         for (int d = 1; d <= 3; d++) Cracks((3 + d) * T, 3 * T, d);
+        Door(6 * T, 4 * T, true); Door(7 * T, 4 * T, false);
         if (e.Style == BgStyle.Future) return;
         var flower = e.Style switch { BgStyle.Jungle => Red, BgStyle.Dino => Orange, _ => Magenta };
         for (int sway = 0; sway < 2; sway++)
@@ -257,6 +275,19 @@ public static class DesignExport
             }
             Rect(x, y + 5, T, 1, A(Mul(c, 0.7f), 0.5f));
         }
+    }
+
+    /// <summary>Porta de madeira (2 blocos de altura): top = parte de cima, com janelinha.</summary>
+    static void Door(int x, int y, bool top)
+    {
+        const int T = K.T;
+        var frame = Hex(0x5a3a1e); var wood = Hex(0x9a6432); var light = Hex(0xb87c44);
+        Rect(x + 1, y, T - 2, T, frame);
+        Rect(x + 3, y + (top ? 2 : 0), T - 6, T - (top ? 2 : 1), wood);
+        for (int i = 0; i < 3; i++) Rect(x + 4 + i * 3, y + (top ? 2 : 0), 1, T - (top ? 2 : 1), Mul(wood, 0.85f));
+        Rect(x + 3, y + (top ? 2 : 0), 1, T - 2, light);
+        if (top) { Rect(x + 5, y + 4, 6, 4, Hex(0x2a2a3a)); Rect(x + 5, y + 4, 6, 1, Hex(0x6a7088)); }
+        else { Rect(x + 10, y + 5, 2, 2, Hex(0xd8b040)); Rect(x + 3, y + 10, T - 6, 1, Mul(wood, 0.8f)); }
     }
 
     static void Brick(int x, int y, Era e, int odd)
@@ -481,7 +512,8 @@ Folha de 8x5 tiles de **16x16** (o heroi tem ~1 bloco de altura, como no Broforc
 - Linha 1: terra logo abaixo do topo, 4 variacoes
 - Linha 2: terra profunda, 4 variacoes
 - Linha 3: 0 tijolo (linha par), 1 tijolo (linha impar), 2 aco, 3 caixote, 4-6 rachaduras (camada por cima, 1 a 3 de dano)
-- Linha 4: enfeites desenhados **em cima** do tile de grama: 0-1 tufo A (2 quadros de vento), 2-3 tufo B, 4-5 flor
+- Linha 4: enfeites desenhados **em cima** do tile de grama: 0-1 tufo A (2 quadros de vento), 2-3 tufo B, 4-5 flor;
+  6 porta (parte de cima), 7 porta (parte de baixo)
 
 Nada tem contorno preto: as formas sao definidas so pelas cores e pelo sombreamento.
 

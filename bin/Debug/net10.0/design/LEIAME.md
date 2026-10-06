@@ -6,7 +6,7 @@ Tudo aqui e PNG comum: edite no Aseprite, Photoshop, Krita, Piskel, LibreSprite.
 - Mantenha o tamanho das imagens e das celulas. Fundo transparente = vazio.
 - Desenhe tudo **olhando para a direita**: o jogo espelha sozinho.
 
-## sprites/herois e sprites/inimigos (soldado, bazuqueiro, brutamontes)
+## sprites/herois e sprites/inimigos (soldado, bazuqueiro, brutamontes, faca, homem_bomba)
 Folha de 6 colunas x 5 linhas, celulas de **32x26**. Os pes ficam no pixel **(14, 24)** de cada celula
 (centro do corpo, chao logo abaixo). Corpos girados ao morrer giram em torno de (14, 15).
 
@@ -28,6 +28,7 @@ Os prisioneiros nas jaulas usam a folha do heroi correspondente.
 4 quadros de 32x16, base no pixel (12, 15): 0 luz acesa, 1 luz apagada, 2 e 3 = mesmo com recuo do tiro.
 
 ## sprites/objetos
+- **refem.png**: mesmo formato das folhas de personagem (o refem usa as linhas Parado e Comemorando = maos para cima, e Correndo ao fugir).
 - **barril.png**: 2 quadros 16x16, base em (8, 15): normal e piscando (prestes a explodir).
 - **glorb.png**: 4 quadros 16x16, centro (8, 8).
 - **jaula.png**: 2 quadros 32x48, base em (16, 47) (bandeira balancando). O prisioneiro e desenhado atras.
@@ -41,7 +42,8 @@ Folha de 8x5 tiles de **16x16** (o heroi tem ~1 bloco de altura, como no Broforc
 - Linha 1: terra logo abaixo do topo, 4 variacoes
 - Linha 2: terra profunda, 4 variacoes
 - Linha 3: 0 tijolo (linha par), 1 tijolo (linha impar), 2 aco, 3 caixote, 4-6 rachaduras (camada por cima, 1 a 3 de dano)
-- Linha 4: enfeites desenhados **em cima** do tile de grama: 0-1 tufo A (2 quadros de vento), 2-3 tufo B, 4-5 flor
+- Linha 4: enfeites desenhados **em cima** do tile de grama: 0-1 tufo A (2 quadros de vento), 2-3 tufo B, 4-5 flor;
+  6 porta (parte de cima), 7 porta (parte de baixo)
 
 Nada tem contorno preto: as formas sao definidas so pelas cores e pelo sombreamento.
 
