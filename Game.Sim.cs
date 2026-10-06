@@ -16,6 +16,8 @@ public sealed partial class Game
         UpdateProps();
         UpdateBullets();
         UpdateExplosions();
+        ProcessCollapse();
+        UpdateFalling();
         Cleanup();
         CheckEra();
 
@@ -117,7 +119,7 @@ public sealed partial class Game
         if (p.Dead) return;
         var ch = Chars.All[p.Char];
         float dt = K.DT;
-        p.AnimT += dt; p.FireT -= dt; p.InvulnT -= dt; p.MuzzleT -= dt; p.Coyote -= dt;
+        p.AnimT += dt; p.FireT -= dt; p.InvulnT -= dt; p.MuzzleT -= dt; p.Coyote -= dt; p.LandT -= dt;
         p.Recoil = MathF.Max(0, p.Recoil - dt * 30);
 
         int dir = (i.Right ? 1 : 0) - (i.Left ? 1 : 0);
@@ -183,24 +185,34 @@ public sealed partial class Game
         }
 
         bool wasGround = p.OnGround;
-        p.OnGround = MoveBody(ref p.X, ref p.Y, ref p.VX, ref p.VY, 3.5f, 14, out _);
+        p.OnGround = MoveBody(ref p.X, ref p.Y, ref p.VX, ref p.VY, 3.5f, 16, out _);
         if (wasGround && !p.OnGround && p.VY >= 0) p.Coyote = 0.08f;
         if (!wasGround && p.OnGround)
-            for (int k = 0; k < 3; k++) AddPart(PKind.Smoke, p.X, p.Y, fx.Next(-25, 25), -5, 0.3f, 2, Hex(0xe8dcc8));
+        {
+            p.LandT = 0.1f;
+            for (int k = 0; k < 4; k++) AddPart(PKind.Smoke, p.X + (k - 1.5f) * 3, p.Y, (k - 1.5f) * 22, -6, 0.3f, 1.6f, Hex(0xe8dcc8));
+        }
+        // poeira ao correr
+        if (p.OnGround && MathF.Abs(p.VX) > 60 && S.Frame % 9 == 0)
+            AddPart(PKind.Smoke, p.X - p.Facing * 4, p.Y - 1, -p.Facing * 15, -8, 0.3f, 1.3f, Hex(0xe8dcc8));
+        // rastro de imagens residuais no dash / jato
+        if ((p.DashT > 0 || p.VY < -260) && S.Frame % 2 == 0)
+            trails.Add(new Trail { X = p.X, Y = p.Y, Facing = p.Facing, Char = p.Char, Life = 0.22f,
+                Anim = Anim.FromPhysics(p.OnGround, false, p.VX, p.VY, p.AnimT, 0, p.DashT > 0) });
 
         // bordas da tela: a esquerda empurra; se ficar esmagado, morre
         if (p.X - 4 < S.CamX)
         {
             p.X = S.CamX + 4;
             if (p.VX < 0) p.VX = 0;
-            if (Overlaps(p.X, p.Y, 3.5f, 14)) { KillPlayer(0, "ESMAGADO PELO TEMPO"); }
+            if (Overlaps(p.X, p.Y, 3.5f, 16)) { KillPlayer(0, "ESMAGADO PELO TEMPO"); }
         }
         if (p.X > S.CamX + K.W - 6) { p.X = S.CamX + K.W - 6; p.VX = MathF.Min(p.VX, 0); }
         if (p.Y > K.ROWS * K.T + 30) { KillPlayer(0, "CAIU NO VAZIO TEMPORAL"); }
 
         rec?.Frames.Add(new GFrame
         {
-            X = p.X, Y = p.Y, VX = p.VX, Facing = (sbyte)p.Facing, OnGround = p.OnGround, Climbing = p.Climbing,
+            X = p.X, Y = p.Y, VX = p.VX, VY = p.VY, Facing = (sbyte)p.Facing, OnGround = p.OnGround, Climbing = p.Climbing,
             Fire = fired, Special = special,
         });
     }
@@ -242,7 +254,7 @@ public sealed partial class Game
                 else
                 {
                     var look = Chars.All[g.Char].Look;
-                    Gibs(last.X, last.Y - 8, A(look.Shirt, 0.6f), A(look.Skin, 0.6f), 14);
+                    Gibs(last.X, last.Y - 10, A(look.Skin, 0.6f), A(look.Shirt, 0.6f), A(look.Pants, 0.6f), A(BloodRed, 0.6f), 14);
                 }
             }
         }
@@ -277,14 +289,15 @@ public sealed partial class Game
     void FireWeapon(int ch, float x, float y, int f, bool ghost)
     {
         var look = Chars.All[ch].Look;
-        float gy = y - 9, mx = x + f * (4 + look.GunLen);
+        var gun = Sprites.GunOf(look);
+        float gy = y + gun.MuzzleY, mx = x + f * gun.MuzzleX;
         float vol = ghost ? 0.4f : 1f;
         switch (ch)
         {
             case 0:
                 AddBullet(BulletKind.Bullet, mx, gy, f * 360, S.Rng.Range(-14, 14), true, K.PLAYER_ID, ghost);
                 sfx.Play("shoot", vol);
-                AddPart(PKind.Pixel, x, gy, -f * fx.Next(20, 50), -fx.Next(60, 110), 0.6f, 1, Yellow, 400);
+                AddPart(PKind.Shell, x, gy, -f * fx.Next(30, 70), -fx.Next(70, 130), 1.2f, 1, Hex(0xe0b040), 500);
                 break;
             case 1:
                 for (int k = 0; k < 6; k++)
@@ -307,7 +320,7 @@ public sealed partial class Game
                 for (int k = 0; k < 6; k++) AddPart(PKind.Smoke, x - f * 6, gy, -f * fx.Next(20, 70), fx.Next(-20, 10), 0.5f, 3, Hex(0xc8c8c8));
                 break;
             case 4:
-                AddBullet(BulletKind.Slash, x + f * 11, y - 9, 0, 0, true, K.PLAYER_ID, ghost);
+                AddBullet(BulletKind.Slash, x + f * 11, y - 11, 0, 0, true, K.PLAYER_ID, ghost);
                 sfx.Play("slash", vol);
                 break;
         }
@@ -320,25 +333,25 @@ public sealed partial class Game
         switch (ch)
         {
             case 0:
-                AddBullet(BulletKind.Grenade, x + f * 4, y - 14, f * 160, -180, true, K.PLAYER_ID, ghost);
+                AddBullet(BulletKind.Grenade, x + f * 4, y - 17, f * 160, -180, true, K.PLAYER_ID, ghost);
                 sfx.Play("jump", vol, 0.6f);
                 break;
             case 1:
-                AddBullet(BulletKind.Dynamite, x + f * 4, y - 14, f * 130, -170, true, K.PLAYER_ID, ghost);
+                AddBullet(BulletKind.Dynamite, x + f * 4, y - 17, f * 130, -170, true, K.PLAYER_ID, ghost);
                 sfx.Play("jump", vol, 0.5f);
                 break;
             case 2:
                 S.FreezeT = 3.5f;
                 sfx.Play("freeze", vol);
-                AddPart(PKind.Ring, x, y - 9, 0, 0, 0.6f, 120, Cyan);
-                AddPart(PKind.Ring, x, y - 9, 0, 0, 0.4f, 60, White);
+                AddPart(PKind.Ring, x, y - 11, 0, 0, 0.6f, 120, Cyan);
+                AddPart(PKind.Ring, x, y - 11, 0, 0, 0.4f, 60, White);
                 flash = MathF.Max(flash, 0.3f);
                 break;
             case 3:
                 Explode(x, y + 2, 20, true, K.PLAYER_ID);
                 break;
             case 4:
-                var b = AddBullet(BulletKind.Slash, x + f * 34, y - 8, 0, 0, true, K.PLAYER_ID, ghost);
+                var b = AddBullet(BulletKind.Slash, x + f * 34, y - 10, 0, 0, true, K.PLAYER_ID, ghost);
                 b.W = 70; b.H = 18; b.Dmg = 4; b.Life = 0.14f;
                 sfx.Play("slash", vol, 0.7f);
                 for (int k = 0; k < 10; k++) AddPart(PKind.Pixel, x + f * k * 7, y - fx.Next(2, 16), 0, 0, 0.35f, 3, A(Chars.All[4].Look.Accent, 0.7f));
@@ -354,16 +367,16 @@ public sealed partial class Game
         float bestD = float.MaxValue;
         if (!P.Dead && mode == Mode.Play)
         {
-            float dx = P.X - x, dy = (P.Y - 8) - y;
-            if (MathF.Abs(dx) < range && MathF.Abs(dy) < vrange) { bestD = MathF.Abs(dx); tx = P.X; ty = P.Y - 8; }
+            float dx = P.X - x, dy = (P.Y - 10) - y;
+            if (MathF.Abs(dx) < range && MathF.Abs(dy) < vrange) { bestD = MathF.Abs(dx); tx = P.X; ty = P.Y - 10; }
         }
         foreach (var g in ghosts)
         {
             int idx = S.Frame - g.StartFrame;
             if (idx < 0 || idx >= g.Frames.Count) continue;
             var f = g.Frames[idx];
-            float dx = f.X - x, dy = (f.Y - 8) - y;
-            if (MathF.Abs(dx) < range && MathF.Abs(dy) < vrange && MathF.Abs(dx) < bestD) { bestD = MathF.Abs(dx); tx = f.X; ty = f.Y - 8; }
+            float dx = f.X - x, dy = (f.Y - 10) - y;
+            if (MathF.Abs(dx) < range && MathF.Abs(dy) < vrange && MathF.Abs(dx) < bestD) { bestD = MathF.Abs(dx); tx = f.X; ty = f.Y - 10; }
         }
         return bestD < float.MaxValue;
     }
@@ -382,7 +395,7 @@ public sealed partial class Game
             e.HurtT -= dt; e.MuzzleT -= dt;
             if (frozen) continue;
             e.AnimT += dt;
-            float gunY = e.Kind == EnemyKind.Flyer ? e.Y : e.Y - (e.Kind == EnemyKind.Brute ? 11 : 9);
+            float gunY = e.Kind == EnemyKind.Flyer ? e.Y : e.Y + (e.Kind == EnemyKind.Rocketeer ? -11 : -7);
 
             switch (e.Kind)
             {
@@ -499,7 +512,10 @@ public sealed partial class Game
                 e.Alerted = false; e.StateT = 0;
             }
         }
+        bool was = e.OnGround;
+        e.LandT -= dt;
         e.OnGround = MoveBody(ref e.X, ref e.Y, ref e.VX, ref e.VY, e.HalfW - 0.5f, e.Height - 2, out _);
+        if (!was && e.OnGround) e.LandT = 0.1f;
     }
 
     void EnemyShoot(Enemy e, float x, float y, float tx, float ty, float speed, Era era)
@@ -510,36 +526,8 @@ public sealed partial class Game
         AddBullet(BulletKind.EBullet, x, y, MathF.Sign(dx) * speed, vy, false, e.Id);
         e.MuzzleT = 0.07f;
         sfx.Play("eshoot", 0.8f);
+        AddPart(PKind.Shell, e.X, y, -MathF.Sign(dx) * fx.Next(30, 60), -fx.Next(70, 120), 1.2f, 1, Hex(0xe0b040), 500);
         AddPart(PKind.Flash, x, y, 0, 0, 0.06f, 3, Yellow);
-    }
-
-    void HitEnemy(Enemy e, int dmg, float kx)
-    {
-        if (e.Dead) return;
-        e.Hp -= dmg;
-        e.HurtT = 0.08f;
-        if (!e.Alerted && e.Kind != EnemyKind.Flyer) { e.Alerted = true; e.FireT = 0.4f; }
-        if (e.Kind != EnemyKind.Turret && e.Kind != EnemyKind.Flyer) e.X += kx;
-        sfx.Play("hit", 0.5f);
-        for (int k = 0; k < 3; k++) AddPart(PKind.Pixel, e.X, e.Y - 8, fx.Next(-60, 60), -fx.Next(20, 90), 0.4f, 1, Hex(0xd82a3a), 400);
-        if (e.Hp <= 0) KillEnemy(e);
-    }
-
-    void KillEnemy(Enemy e)
-    {
-        e.Dead = true;
-        int pts = e.Kind switch { EnemyKind.Brute => 300, EnemyKind.Turret => 250, EnemyKind.Flyer => 150, EnemyKind.Rocketeer => 150, _ => 100 };
-        S.Score += pts; S.Kills++;
-        var era = Eras.ForX(e.X);
-        sfx.Play("edie");
-        float cy = e.Kind == EnemyKind.Flyer ? e.Y : e.Y - 8;
-        if (e.Kind is EnemyKind.Turret or EnemyKind.Flyer && era.Style is BgStyle.Future or BgStyle.Jungle)
-            Explode(e.X, cy, 14, true, K.PLAYER_ID);
-        else
-            Gibs(e.X, cy, era.EShirt, era.ESkin, e.Kind == EnemyKind.Brute ? 26 : 16);
-        AddText(e.X, cy - 14, "+" + pts, Yellow);
-        shake = MathF.Max(shake, 2);
-        if (e.Kind == EnemyKind.Brute) hitStop = 0.05f;
     }
 
     // ------------------------------------------------------------------ props
@@ -569,7 +557,7 @@ public sealed partial class Game
                     }
                     break;
                 case PropKind.Cage:
-                    if (!P.Dead && Hit(P.X - 4, P.Y - 14, P.X + 4, P.Y, p.X - 9, p.Y - 24, p.X + 9, p.Y))
+                    if (!P.Dead && Hit(P.X - 4, P.Y - 16, P.X + 4, P.Y, p.X - 9, p.Y - 28, p.X + 9, p.Y))
                     {
                         p.Done = true;
                         timeOuts++;
@@ -581,7 +569,7 @@ public sealed partial class Game
                     }
                     break;
                 case PropKind.Glorb:
-                    if (!P.Dead && MathF.Abs(P.X - p.X) < 9 && MathF.Abs(P.Y - 8 - p.Y) < 12)
+                    if (!P.Dead && MathF.Abs(P.X - p.X) < 9 && MathF.Abs(P.Y - 10 - p.Y) < 12)
                     {
                         p.Done = true;
                         S.Score += 50;
@@ -696,7 +684,7 @@ public sealed partial class Game
         }
         else
         {
-            if (!P.Dead && mode == Mode.Play && Hit(bx0, by0, bx1, by1, P.X - 3, P.Y - 13, P.X + 3, P.Y))
+            if (!P.Dead && mode == Mode.Play && Hit(bx0, by0, bx1, by1, P.X - 3, P.Y - 16, P.X + 3, P.Y))
             {
                 if (P.InvulnT > 0 || P.DashT > 0) return;
                 b.Dead = true;
@@ -719,7 +707,7 @@ public sealed partial class Game
         {
             if (e.Dead || e.X > S.CamX + K.W + 20) continue;
             var (x0, y0, x1, y1) = e.Box;
-            if (Hit(bx0, by0, bx1, by1, x0, y0, x1, y1) && e.HurtT <= 0) HitEnemy(e, b.Dmg, 0);
+            if (Hit(bx0, by0, bx1, by1, x0, y0, x1, y1) && e.HurtT <= 0) { e.HitDir = MathF.Sign(e.X - b.X + 0.01f); HitEnemy(e, b.Dmg, 0); }
         }
         // a katana rebate balas inimigas
         foreach (var o in S.Bullets)
@@ -740,93 +728,7 @@ public sealed partial class Game
                 if (Ter.Solid(tx, ty)) DamageTile(tx, ty, 1);
     }
 
-    /// <summary>Danifica um tile. Retorna true se ele foi destruido.</summary>
-    bool DamageTile(int tx, int ty, int dmg)
-    {
-        byte b = Ter.Get(tx, ty);
-        int type = Terrain.TypeOf(b);
-        if (type == 0) return true;
-        float cx = tx * K.T + 4, cy = ty * K.T + 4;
-        if (type == Terrain.STEEL)
-        {
-            sfx.Play("clank", 0.5f);
-            AddPart(PKind.Spark, cx, cy, fx.Next(-60, 60), -fx.Next(20, 70), 0.15f, 1, Yellow);
-            return false;
-        }
-        int d = Terrain.DmgOf(b) + dmg;
-        var era = Eras.ForCol(tx);
-        var c = TileColor(type, era);
-        if (d >= Terrain.HpOf(type))
-        {
-            Ter.Set(S.Frame, tx, ty, 0);
-            for (int k = 0; k < 4; k++) AddPart(PKind.Debris, cx + fx.Next(-3, 4), cy + fx.Next(-3, 4), fx.Next(-70, 70), -fx.Next(40, 140), 0.9f, fx.Next(1, 3), c, 500);
-            AddPart(PKind.Smoke, cx, cy, 0, -10, 0.4f, 3, A(Col.Mul(c, 1.3f), 0.7f));
-            return true;
-        }
-        Ter.Set(S.Frame, tx, ty, Terrain.Make(type, d));
-        AddPart(PKind.Debris, cx, cy, fx.Next(-40, 40), -fx.Next(20, 80), 0.5f, 1, c, 500);
-        return false;
-    }
-
-    static Color TileColor(int type, Era e) => type switch
-    {
-        Terrain.DIRT => e.Dirt, Terrain.BRICK => e.Brick, Terrain.STEEL => e.Steel, _ => Hex(0xa8743a),
-    };
-
     // ------------------------------------------------------------------ explosoes
-
-    void Explode(float x, float y, float r, bool fromPlayer, int owner)
-    {
-        S.Explosions.Add(new Explosion { X = x, Y = y, R = r, FromPlayer = fromPlayer, Dur = 0.35f + r / 80f });
-        sfx.Play("boom", MathF.Min(1, r / 30f));
-        shake = MathF.Max(shake, r / 6f);
-        flash = MathF.Max(flash, r / 120f);
-
-        // destroi terreno
-        int r2 = (int)(r / K.T) + 1;
-        int cx = (int)MathF.Floor(x / K.T), cy = (int)MathF.Floor(y / K.T);
-        for (int tx = cx - r2; tx <= cx + r2; tx++)
-            for (int ty = cy - r2; ty <= cy + r2; ty++)
-            {
-                float dx = tx * K.T + 4 - x, dy = ty * K.T + 4 - y;
-                if (dx * dx + dy * dy > r * r * 0.8f) continue;
-                if (Ter.Solid(tx, ty)) DamageTile(tx, ty, 99);
-            }
-        foreach (var e in S.Enemies)
-        {
-            if (e.Dead) continue;
-            var (x0, y0, x1, y1) = e.Box;
-            float ex = (x0 + x1) / 2, ey = (y0 + y1) / 2;
-            if ((ex - x) * (ex - x) + (ey - y) * (ey - y) < (r + 6) * (r + 6))
-            {
-                HitEnemy(e, 6, 0);
-                if (!e.Dead && e.Kind != EnemyKind.Turret && e.Kind != EnemyKind.Flyer) { e.VY = -150; e.X += MathF.Sign(ex - x) * 4; }
-            }
-        }
-        foreach (var p in S.Props)
-            if (!p.Done && p.Kind == PropKind.Barrel && p.Fuse < 0 && MathF.Abs(p.X - x) < r + 4 && MathF.Abs(p.Y - 5 - y) < r + 4)
-                p.Fuse = 0.12f;
-        // explosoes de inimigos e barris machucam o jogador (como no Broforce)
-        if (!fromPlayer && !P.Dead)
-        {
-            float dx = P.X - x, dy = P.Y - 7 - y;
-            if (dx * dx + dy * dy < r * r * 0.75f) KillPlayer(owner > 0 ? owner : 0, "EXPLODIDO");
-        }
-        // particulas
-        for (int k = 0; k < (int)(r * 0.8f); k++)
-        {
-            float a = (float)(fx.NextDouble() * Math.PI * 2), sp = fx.Next(30, (int)(r * 6));
-            AddPart(PKind.Spark, x, y, MathF.Cos(a) * sp, MathF.Sin(a) * sp, 0.25f + (float)fx.NextDouble() * 0.2f, 1, k % 3 == 0 ? White : Yellow);
-        }
-        for (int k = 0; k < (int)(r / 3); k++)
-            AddPart(PKind.Smoke, x + fx.Next(-(int)r / 2, (int)r / 2), y + fx.Next(-(int)r / 2, (int)r / 2), fx.Next(-20, 20), -fx.Next(10, 40), 0.9f + (float)fx.NextDouble() * 0.6f, r / 5f, Hex(0x4a3a3a));
-        AddPart(PKind.Ring, x, y, 0, 0, 0.3f, r * 1.3f, White);
-    }
-
-    void UpdateExplosions()
-    {
-        foreach (var e in S.Explosions) e.T += K.DT;
-    }
 
     void Cleanup()
     {
@@ -835,54 +737,10 @@ public sealed partial class Game
         S.Bullets.RemoveAll(b => b.Dead);
         S.Props.RemoveAll(p => p.Done || p.X < left);
         S.Explosions.RemoveAll(e => e.T > e.Dur);
+        S.Falling.RemoveAll(f => f.Dead);
     }
 
     // ------------------------------------------------------------------ particulas / texto
 
-    void AddPart(PKind k, float x, float y, float vx, float vy, float life, float size, Color c, float grav = 0)
-    {
-        if (parts.Count > 900) return;
-        parts.Add(new Particle { Kind = k, X = x, Y = y, VX = vx, VY = vy, Life = life, Max = life, Size = size, C = c, Grav = grav });
-    }
 
-    void AddText(float x, float y, string s, Color c) => texts.Add(new FloatText { X = x, Y = y, Text = s, C = c, Life = 1.2f });
-
-    void Gibs(float x, float y, Color a, Color b, int n)
-    {
-        for (int k = 0; k < n; k++)
-        {
-            var c = k % 4 == 0 ? Hex(0xb81e2e) : k % 2 == 0 ? a : b;
-            AddPart(PKind.Debris, x + fx.Next(-3, 4), y + fx.Next(-4, 4), fx.Next(-110, 110), -fx.Next(60, 220), 1.4f, fx.Next(1, 4), c, 520);
-        }
-        AddPart(PKind.Flash, x, y, 0, 0, 0.08f, 8, White);
-    }
-
-    void UpdateFx()
-    {
-        float dt = K.DT;
-        for (int i = parts.Count - 1; i >= 0; i--)
-        {
-            var p = parts[i];
-            p.Life -= dt;
-            if (p.Life <= 0) { parts.RemoveAt(i); continue; }
-            p.VY += p.Grav * dt;
-            float nx = p.X + p.VX * dt, ny = p.Y + p.VY * dt;
-            if (p.Kind == PKind.Debris || p.Grav > 0)
-            {
-                if (Ter.SolidAt(nx, ny))
-                {
-                    if (!Ter.SolidAt(p.X, ny)) { p.VX *= -0.5f; nx = p.X; }
-                    else { p.VY *= -0.35f; p.VX *= 0.6f; ny = p.Y; }
-                }
-            }
-            if (p.Kind == PKind.Smoke) { p.VX *= 0.95f; p.VY -= 12 * dt; }
-            p.X = nx; p.Y = ny;
-        }
-        for (int i = texts.Count - 1; i >= 0; i--)
-        {
-            var t = texts[i];
-            t.Life -= dt; t.Y -= 18 * dt;
-            if (t.Life <= 0) texts.RemoveAt(i);
-        }
-    }
 }

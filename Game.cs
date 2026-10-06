@@ -16,6 +16,8 @@ public sealed partial class Game
     Ghost? rec;                                   // gravacao da vida atual
     readonly List<Particle> parts = new();
     readonly List<FloatText> texts = new();
+    readonly List<Corpse> corpses = new();
+    readonly List<Trail> trails = new();
     readonly Random fx = new();                   // aleatoriedade so visual (fora do snapshot)
     readonly Sfx sfx;
 
@@ -38,7 +40,8 @@ public sealed partial class Game
 
     public void Run()
     {
-        var rt = Raylib.LoadRenderTexture(K.W, K.H);
+        // 1 coluna extra para o deslocamento sub-pixel da camera
+        var rt = Raylib.LoadRenderTexture(K.W + 1, K.H);
         Raylib.SetTextureFilter(rt.Texture, TextureFilter.Point);
         double acc = 0;
         while (!Raylib.WindowShouldClose() && !quit)
@@ -66,19 +69,8 @@ public sealed partial class Game
             float mVol = mode is Mode.Paused or Mode.GameOver ? 0.15f : mode == Mode.Select ? 0.25f : 0.45f;
             sfx.UpdateMusic(mPitch, mVol);
 
-            Raylib.BeginTextureMode(rt);
-            Draw();
-            Raylib.EndTextureMode();
-            if (bot != null) BotCapture(rt);
-
-            Raylib.BeginDrawing();
-            Raylib.ClearBackground(Ink);
-            int sw = Raylib.GetScreenWidth(), sh = Raylib.GetScreenHeight();
-            float scale = MathF.Min(sw / (float)K.W, sh / (float)K.H);
-            if (scale >= 1) scale = MathF.Floor(scale);     // escala inteira = pixels nitidos
-            float dw = K.W * scale, dh = K.H * scale;
-            Raylib.DrawTexturePro(rt.Texture, new Rectangle(0, 0, K.W, -K.H),
-                new Rectangle((sw - dw) / 2, (sh - dh) / 2, dw, dh), System.Numerics.Vector2.Zero, 0, Color.White);
+            Compose(rt);
+            if (bot != null) BotCapture();
             Raylib.EndDrawing();
         }
         Raylib.UnloadRenderTexture(rt);
@@ -161,7 +153,7 @@ public sealed partial class Game
         seed = (uint)Environment.TickCount | 1u;
         S = new WorldState { Rng = new Rng(seed * 2654435761u) };
         Ter = new Terrain();
-        hist.Clear(); ghosts.Clear(); parts.Clear(); texts.Clear();
+        hist.Clear(); ghosts.Clear(); parts.Clear(); texts.Clear(); corpses.Clear(); trails.Clear(); decals.Clear();
         rec = null; P = new Player { Dead = true };
         lastEra = -1;
         EnsureChunks();
@@ -173,7 +165,7 @@ public sealed partial class Game
         seed = (uint)Environment.TickCount | 1u;
         S = new WorldState { Rng = new Rng(seed * 2654435761u) };
         Ter = new Terrain();
-        hist.Clear(); ghosts.Clear(); parts.Clear(); texts.Clear();
+        hist.Clear(); ghosts.Clear(); parts.Clear(); texts.Clear(); corpses.Clear(); trails.Clear(); decals.Clear();
         timeOuts = 3; glorbCount = 0; lastEra = -1; newBest = false;
         EnsureChunks();
         SpawnPlayer(0);
@@ -203,14 +195,14 @@ public sealed partial class Game
         flash = 0.4f;
     }
 
-    void KillPlayer(int killerId, string msg)
+    void KillPlayer(int killerId, string msg, bool boom = false)
     {
         if (P.Dead || mode != Mode.Play) return;
         if (P.InvulnT > 0 || P.DashT > 0) return;
         if (P.Shield > 0)
         {
             P.Shield--; P.InvulnT = 1.2f; sfx.Play("shield");
-            AddPart(PKind.Ring, P.X, P.Y - 9, 0, 0, 0.4f, 16, Cyan);
+            AddPart(PKind.Ring, P.X, P.Y - 11, 0, 0, 0.4f, 16, Cyan);
             AddText(P.X, P.Y - 24, "ESCUDO!", Cyan);
             return;
         }
@@ -218,7 +210,13 @@ public sealed partial class Game
         deathMsg = msg;
         sfx.Play("pdie"); sfx.Play("boom", 0.6f);
         shake = 5; flash = 0.6f; hitStop = 0;
-        Gibs(P.X, P.Y - 8, Chars.All[P.Char].Look.Shirt, Chars.All[P.Char].Look.Skin, 30);
+        var lk = Chars.All[P.Char].Look;
+        if (boom) Gibs(P.X, P.Y - 10, lk.Skin, lk.Shirt, lk.Pants, BloodRed, 40);
+        else
+        {
+            AddCorpse(P.X, P.Y - 10, lk, P.Facing, -P.Facing, false, null);
+            BloodSpray(P.X, P.Y - 10, -P.Facing, 22, BloodRed, 1.3f);
+        }
         if (rec != null) { rec.Died = true; rec.KillerId = killerId; ghosts.Add(rec); rec = null; }
         mode = Mode.Dying; modeT = 0;
     }
@@ -236,7 +234,7 @@ public sealed partial class Game
     {
         mode = Mode.Rewind; modeT = 0;
         rewindIdx = hist.Count - 1; rewindAcc = 0;
-        parts.Clear(); texts.Clear();
+        parts.Clear(); texts.Clear(); corpses.Clear(); trails.Clear(); decals.Clear();
         sfx.Play("rewind");
     }
 

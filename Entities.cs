@@ -13,12 +13,12 @@ public sealed class Enemy
     public EnemyKind Kind;
     public float X, Y, VX, VY, BaseY, Phase;
     public int Hp, Facing = -1, Burst;
-    public float FireT, AlertT, StateT, HurtT, MuzzleT, AnimT;
-    public bool OnGround, Alerted, Walking, Dead;
+    public float FireT, AlertT, StateT, HurtT, MuzzleT, AnimT, LandT, HitDir;
+    public bool OnGround, Alerted, Walking, Dead, LastBoom;
     public Enemy Clone() => (Enemy)MemberwiseClone();
 
     public float HalfW => Kind switch { EnemyKind.Brute => 6, EnemyKind.Turret => 7, EnemyKind.Flyer => 7, _ => 4 };
-    public float Height => Kind switch { EnemyKind.Brute => 20, EnemyKind.Turret => 11, EnemyKind.Flyer => 9, _ => 16 };
+    public float Height => Kind switch { EnemyKind.Brute => 23, EnemyKind.Turret => 11, EnemyKind.Flyer => 9, _ => 19 };
     /// <summary>Caixa de colisao. Para voadores Y e o centro; para os demais, Y sao os pes.</summary>
     public (float x0, float y0, float x1, float y1) Box =>
         Kind == EnemyKind.Flyer
@@ -49,6 +49,15 @@ public sealed class Prop
     public Prop Clone() => (Prop)MemberwiseClone();
 }
 
+/// <summary>Bloco de terreno caindo depois que a estrutura perdeu a sustentacao.</summary>
+public sealed class FallingBlock
+{
+    public float X, Y, VY;      // canto superior esquerdo, em pixels
+    public byte Tile;
+    public bool Dead;
+    public FallingBlock Clone() => (FallingBlock)MemberwiseClone();
+}
+
 public sealed class Explosion
 {
     public float X, Y, R, T, Dur = 0.55f;
@@ -66,6 +75,7 @@ public sealed class WorldState
     public List<Bullet> Bullets = new();
     public List<Prop> Props = new();
     public List<Explosion> Explosions = new();
+    public List<FallingBlock> Falling = new();
 
     public WorldState Clone()
     {
@@ -74,6 +84,7 @@ public sealed class WorldState
         s.Bullets = Bullets.ConvertAll(b => b.Clone());
         s.Props = Props.ConvertAll(p => p.Clone());
         s.Explosions = Explosions.ConvertAll(x => x.Clone());
+        s.Falling = Falling.ConvertAll(f => f.Clone());
         return s;
     }
 }
@@ -82,14 +93,14 @@ public sealed class Player
 {
     public int Char, Facing = 1, Specials = 3, Shield, WallDir;
     public float X, Y, VX, VY;
-    public float FireT, InvulnT, AnimT, DashT, MuzzleT, Coyote, Recoil;
+    public float FireT, InvulnT, AnimT, DashT, MuzzleT, Coyote, Recoil, LandT;
     public bool OnGround, Climbing, Dead;
 }
 
 /// <summary>Um quadro gravado de uma vida passada (o "fantasma" do Super Time Force).</summary>
 public struct GFrame
 {
-    public float X, Y, VX;
+    public float X, Y, VX, VY;
     public sbyte Facing;
     public bool OnGround, Climbing, Fire, Special;
 }
@@ -174,13 +185,38 @@ public sealed class Terrain
     }
 }
 
-public enum PKind { Pixel, Smoke, Spark, Flash, Ring, Debris }
+/// <summary>Corpo de inimigo/heroi voando e girando apos morrer (so visual).</summary>
+public sealed class Corpse
+{
+    public float X, Y, VX, VY, Angle, Spin, Life = 2.4f, T;
+    public int Facing, Bounces;
+    public Look Look;
+    public bool IsFlyer, Rest;
+    public Era? Era;
+}
+
+/// <summary>Imagem residual do heroi durante dash/jato.</summary>
+public sealed class Trail
+{
+    public float X, Y, Life;
+    public int Facing, Char;
+    public Anim Anim;
+}
+
+public enum PKind { Pixel, Smoke, Spark, Flash, Ring, Debris, Fire, Flame, Blood, Gib, Ember, Shell, BurnDebris }
 
 public sealed class Particle
 {
     public float X, Y, VX, VY, Life, Max, Size, Grav;
-    public Color C;
+    public Color C, C2;
     public PKind Kind;
+}
+
+/// <summary>Mancha permanente (sangue, queimado) grudada num tile.</summary>
+public struct Decal
+{
+    public int X, Y;
+    public Color C;
 }
 
 public sealed class FloatText

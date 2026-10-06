@@ -21,3 +21,4 @@
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/obj/Debug/net10.0/JackassRun.pdb
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/obj/Debug/net10.0/JackassRun.genruntimeconfig.cache
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/obj/Debug/net10.0/ref/JackassRun.dll
+/Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/obj/Debug/net10.0/JackassRun.sourcelink.json

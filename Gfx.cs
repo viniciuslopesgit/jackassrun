@@ -4,17 +4,39 @@ using static JackassRun.Col;
 
 namespace JackassRun;
 
-/// <summary>Desenho procedural em pixel art: todo sprite e montado com retangulos
-/// e ganha um contorno escuro de 1px, como nos sprites de Super Time Force.</summary>
-public static class Gfx
+public enum AState : byte { Idle, Run, Jump, Fall, Climb, Dash, Cheer, Tumble, Hurt }
+
+/// <summary>Estado de animacao de um boneco: qual pose, relogio e alguns modificadores.</summary>
+public struct Anim
+{
+    public AState S;
+    public float T, Speed, Recoil, Land;
+    public int Rot;            // rotacao em passos de 90 graus (corpos voando)
+
+    public static Anim Of(AState s, float t, float speed = 88) => new() { S = s, T = t, Speed = speed };
+
+    public static Anim FromPhysics(bool onGround, bool climbing, float vx, float vy, float t, float land = 0, bool dash = false)
+    {
+        var s = dash ? AState.Dash : climbing ? AState.Climb : !onGround ? (vy < -20 ? AState.Jump : AState.Fall)
+              : MathF.Abs(vx) > 8 ? AState.Run : AState.Idle;
+        return new Anim { S = s, T = t, Speed = MathF.Abs(vx), Land = land };
+    }
+}
+
+/// <summary>Desenho procedural em pixel art. Cada sprite e montado com retangulos e ganha
+/// contorno escuro de 1px. Proporcoes e animacao no estilo Broforce: "brutamontes" com
+/// cabeca pequena, ombros largos, arma nas duas maos e passadas longas.</summary>
+public static partial class Gfx
 {
     struct Part { public int X, Y, W, H; public Color C; public bool NoOutline; }
-    static readonly Part[] parts = new Part[48];
-    static int np;
+    static readonly Part[] parts = new Part[400];
+    static int np, offX, offY;
+    public const int Pivot = -9;   // centro do corpo, usado para girar corpos
 
     static void P(int x, int y, int w, int h, Color c, bool noOutline = false)
     {
-        if (np < parts.Length) parts[np++] = new Part { X = x, Y = y, W = w, H = h, C = c, NoOutline = noOutline };
+        if (w <= 0 || h <= 0) return;
+        if (np < parts.Length) parts[np++] = new Part { X = x + offX, Y = y + offY, W = w, H = h, C = c, NoOutline = noOutline };
     }
 
     public static void Rect(int x, int y, int w, int h, Color c) => Raylib.DrawRectangle(x, y, w, h, c);
@@ -26,206 +48,157 @@ public static class Gfx
         Raylib.DrawRectangle(x, y, w, h, c);
     }
 
-    static void Flush(int fx, int fy, int facing, float alpha, Color? over)
+    /// <summary>Circulo feito de linhas horizontais (fica pixelado e nitido em qualquer escala).</summary>
+    public static void PixelCircle(int cx, int cy, int r, Color c)
     {
-        for (int pass = 0; pass < 2; pass++)
+        if (r <= 0) { Raylib.DrawRectangle(cx, cy, 1, 1, c); return; }
+        for (int dy = -r; dy <= r; dy++)
+        {
+            int half = (int)MathF.Sqrt(r * r - dy * dy + r * 0.6f);
+            Raylib.DrawRectangle(cx - half, cy + dy, half * 2 + 1, 1, c);
+        }
+    }
+
+    /// <summary>Desenha as partes acumuladas: primeiro todos os contornos, depois os preenchimentos.
+    /// rot gira em passos de 90 graus em torno do centro do corpo.</summary>
+    static void Flush(int fx, int fy, int facing, float alpha, Color? over, int rot = 0, bool outline = true)
+    {
+        rot &= 3;
+        const int px = 0, py = Pivot;
+        for (int pass = outline ? 0 : 1; pass < 2; pass++)
             for (int i = 0; i < np; i++)
             {
                 ref var p = ref parts[i];
-                int x = facing >= 0 ? fx + p.X : fx - p.X - p.W;
-                int y = fy + p.Y;
+                int rx = facing >= 0 ? p.X : -p.X - p.W, ry = p.Y, w = p.W, h = p.H;
+                if (rot != 0)
+                {
+                    int ax = rx - px, ay = ry - py;
+                    switch (rot)
+                    {
+                        case 1: (rx, ry, w, h) = (-(ay + h), ax, h, w); break;
+                        case 2: (rx, ry) = (-(ax + w), -(ay + h)); break;
+                        default: (rx, ry, w, h) = (ay, -(ax + w), h, w); break;
+                    }
+                    rx += px; ry += py;
+                }
+                int x = fx + rx, y = fy + ry;
                 if (pass == 0)
                 {
-                    if (!p.NoOutline) Raylib.DrawRectangle(x - 1, y - 1, p.W + 2, p.H + 2, A(Ink, alpha));
+                    if (!p.NoOutline) Raylib.DrawRectangle(x - 1, y - 1, w + 2, h + 2, A(Ink, alpha));
                 }
                 else
                 {
-                    var c = over.HasValue && !p.NoOutline ? over.Value : p.C;
-                    Raylib.DrawRectangle(x, y, p.W, p.H, A(c, alpha));
+                    var c = over.HasValue && (!p.NoOutline || !outline) ? over.Value : p.C;
+                    Raylib.DrawRectangle(x, y, w, h, A(c, alpha));
                 }
             }
-        np = 0;
-    }
-
-    /// <summary>Boneco cabecudo. (fx,fy) = pes, centro. Usado para herois, inimigos, prisioneiros e fantasmas.</summary>
-    public static void Humanoid(int fx, int fy, int facing, in Look L, float runT, bool moving, bool air,
-        float recoil = 0, float alpha = 1, Color? over = null, bool armsUp = false)
-    {
-        np = 0;
-        int bob = 0, lf = 0, lb = 0, lfy = 0, lby = 0;
-        if (air) { lf = 1; lfy = -2; lb = -1; lby = -1; }
-        else if (moving)
-        {
-            float s = MathF.Sin(runT * 15f);
-            lf = (int)MathF.Round(s * 2); lb = -lf;
-            lfy = s > 0.3f ? -1 : 0; lby = s < -0.3f ? -1 : 0;
-            bob = MathF.Abs(s) > 0.7f ? -1 : 0;
-        }
-        int B = L.Bulk;
-        var backShade = Mul(L.Pants, 0.72f);
-
-        // perna de tras + braco de tras
-        P(-3 + lb - B, -5 + lby, 3, 3, backShade);
-        P(-3 + lb - B, -2 + lby, 3, 2, Mul(L.Boots, 0.8f));
-        P(-4 - B, -10 + bob - B, 2, 4, Mul(L.Shirt, 0.75f));
-        // perna da frente
-        P(0 + lf + B, -5 + lfy, 3, 3, L.Pants);
-        P(0 + lf + B, -2 + lfy, 4, 2, L.Boots);
-        // tronco
-        P(-3 - B, -11 + bob - B * 2, 7 + B * 2, 6 + B * 2, L.Shirt);
-        P(-3 - B, -6 + bob, 7 + B * 2, 1, Mul(L.Pants, 0.6f));
-        // cabeca
-        int hy = -18 + bob - B * 2;
-        P(-4, hy, 8, 7, L.Skin);
-
-        switch (L.Hat)
-        {
-            case 0: // bandana
-                P(-4, hy, 8, 2, L.Hair); P(-4, hy, 3, 4, L.Hair);
-                P(-4, hy + 2, 8, 1, L.Accent, true); P(-7, hy + 2, 3, 1, L.Accent); P(-6, hy + 3, 2, 1, L.Accent);
-                P(2, hy + 3, 1, 2, Ink, true);
-                break;
-            case 1: // capacete militar
-                P(-5, hy - 1, 9, 3, L.Hair); P(3, hy + 1, 3, 1, Mul(L.Hair, 0.8f));
-                P(2, hy + 3, 1, 2, Ink, true);
-                P(-4, hy + 5, 1, 2, L.Accent, true);
-                break;
-            case 2: // cabelo maluco + oculos de protecao
-                P(-5, hy - 2, 3, 3, L.Hair); P(-2, hy - 3, 3, 3, L.Hair); P(1, hy - 2, 3, 3, L.Hair);
-                P(-5, hy, 3, 5, L.Hair);
-                P(0, hy + 2, 5, 3, L.Accent); P(1, hy + 3, 1, 1, White, true); P(3, hy + 3, 1, 1, White, true);
-                break;
-            case 3: // mascara ninja
-                P(-4, hy, 8, 7, L.Hair); P(0, hy + 3, 4, 2, L.Skin, true); P(2, hy + 3, 1, 1, Ink, true);
-                P(-4, hy + 1, 8, 1, L.Accent, true); P(-8, hy + 1, 4, 1, L.Accent); P(-7, hy + 2, 2, 2, L.Accent);
-                break;
-            case 4: // capacete espacial
-                P(-5, hy - 1, 10, 9, L.Hair); P(0, hy + 1, 5, 4, L.Accent); P(3, hy + 1, 1, 1, White, true);
-                P(-4, hy - 3, 1, 2, Mul(L.Hair, 0.7f));
-                break;
-            case 5: // cranio/osso (homem das cavernas)
-                P(-5, hy + 2, 3, 6, Mul(L.Shirt, 0.7f));
-                P(-5, hy - 1, 9, 3, L.Accent); P(3, hy - 3, 2, 3, L.Accent); P(-4, hy - 3, 2, 3, L.Accent);
-                P(2, hy + 3, 1, 2, Ink, true);
-                break;
-            case 6: // elmo de cavaleiro
-                P(-5, hy - 1, 10, 8, L.Hair); P(0, hy + 3, 5, 1, Ink, true);
-                P(-2, hy - 4, 3, 3, L.Accent); P(-4, hy - 3, 2, 2, L.Accent);
-                break;
-            case 7: // robo
-                P(-5, hy - 1, 10, 8, L.Hair); P(-1, hy + 2, 6, 2, L.Accent, true);
-                P(-1, hy - 4, 1, 3, Mul(L.Hair, 0.7f)); P(-2, hy - 5, 3, 1, L.Accent);
-                break;
-            case 8: // chapeu de cowboy + cabelo comprido
-                P(-5, hy + 1, 3, 7, L.Hair); P(-4, hy, 8, 2, L.Hair);
-                P(-6, hy - 1, 13, 1, L.Accent); P(-3, hy - 4, 7, 3, L.Accent); P(-3, hy - 2, 7, 1, Mul(L.Accent, 0.6f), true);
-                P(2, hy + 3, 1, 2, Ink, true);
-                break;
-        }
-
-        // arma / lamina
-        int gy = -9 + bob - B, gx = 2 - (int)recoil;
-        if (armsUp)
-        {
-            P(-5, hy - 3, 2, 5, L.Shirt); P(3, hy - 3, 2, 5, L.Shirt);
-            P(-5, hy - 5, 2, 2, L.Skin); P(3, hy - 5, 2, 2, L.Skin);
-        }
-        else if (L.Blade)
-        {
-            P(gx, gy, 2, 2, L.Accent);
-            P(gx + 2, gy - 1, L.GunLen, 1, L.Gun);
-            P(gx + 1 + L.GunLen, gy - 2, 1, 1, L.Gun);
-            P(0, gy, 3, 3, L.Shirt); P(2, gy + 1, 2, 2, L.Skin);
-        }
-        else if (L.GunLen > 0)
-        {
-            P(gx - 1, gy + 1, 2, 2, Mul(L.Gun, 0.75f));
-            P(gx, gy - (L.GunH > 2 ? 1 : 0), L.GunLen, L.GunH, L.Gun);
-            P(gx + L.GunLen - 2, gy - 1 - (L.GunH > 2 ? 1 : 0), 1, 1, L.Gun);
-            P(0, gy, 3, 3, L.Shirt); P(2, gy + 1, 2, 2, L.Skin);
-        }
-
-        Flush(fx, fy, facing, alpha, over);
+        np = 0; offX = offY = 0;
     }
 
     /// <summary>Inimigo voador; o visual muda com a era (helidrone, pterodactilo, morcego, OVNI).</summary>
-    public static void Flyer(int cx, int cy, int facing, Era e, float t, Color? over, float alpha = 1)
+    public static void Flyer(int cx, int cy, int facing, Era e, float t, Color? over, float alpha = 1, int rot = 0)
     {
         np = 0;
-        int flap = MathF.Sin(t * 16f) > 0 ? -1 : 1;
+        int f = (int)(t * 14) & 3;
+        int wy = f == 0 ? -1 : f == 2 ? 1 : 0;
         var body = e.FlyBody; var wing = e.FlyWing;
+        int hover = f == 1 || f == 2 ? 1 : 0;
+        offY = Pivot + hover;
         switch (e.Style)
         {
             case BgStyle.Jungle: // helidrone
-                P(-6, -3, 12, 6, body); P(-10, -1, 4, 2, body); P(-11, -3, 2, 2, body);
+                offY = Pivot;
+                P(-6, -3, 12, 6, body); P(-10, -1, 4, 2, body); P(-11, -3 + (f & 1), 2, 2, body);
+                P(-5, -2, 9, 1, Mul(body, 1.3f), true);
                 P(2, -2, 3, 2, Cyan); P(-1, -5, 2, 2, Mul(body, 0.7f));
-                int r = (int)(t * 40) % 2 == 0 ? 8 : 5;
+                int r = f switch { 0 => 8, 1 => 5, 2 => 2, _ => 5 };
                 P(-r, -6, r * 2, 1, wing);
                 P(-2, 3, 4, 2, Mul(body, 0.6f));
                 break;
             case BgStyle.Dino: // pterodactilo
                 P(-5, -2, 10, 4, body); P(5, -3, 3, 3, body); P(8, -2, 4, 1, Yellow); P(3, -5, 1, 3, body);
+                P(-4, -1, 8, 1, Mul(body, 1.25f), true);
                 P(6, -2, 1, 1, Ink, true);
-                if (flap < 0) { P(-6, -7, 6, 4, wing); P(-1, -8, 4, 3, wing); }
+                if (wy < 0) { P(-6, -7, 6, 4, wing); P(-1, -8, 4, 3, wing); }
+                else if (wy == 0) { P(-9, -2, 6, 2, wing); P(-1, -3, 6, 2, wing); }
                 else { P(-6, 2, 6, 3, wing); P(-1, 2, 4, 4, wing); }
                 break;
             case BgStyle.Medieval: // morcego-gargula
                 P(-4, -3, 8, 7, body); P(-3, -6, 2, 3, body); P(1, -6, 2, 3, body);
                 P(1, -1, 2, 1, Red, true);
-                if (flap < 0) { P(-12, -6, 8, 3, wing); P(4, -6, 8, 3, wing); }
-                else { P(-12, 0, 8, 3, wing); P(4, 0, 8, 3, wing); }
+                if (wy < 0) { P(-12, -6, 8, 3, wing); P(4, -6, 8, 3, wing); }
+                else if (wy == 0) { P(-12, -2, 8, 2, wing); P(4, -2, 8, 2, wing); }
+                else { P(-12, 1, 8, 3, wing); P(4, 1, 8, 3, wing); }
                 break;
             default: // OVNI
                 P(-9, -1, 18, 4, body); P(-4, -5, 8, 4, wing); P(-2, -4, 2, 1, White, true);
-                for (int i = 0; i < 3; i++)
-                    P(-6 + i * 5, 1, 2, 1, ((int)(t * 8) + i) % 3 == 0 ? Yellow : Mul(body, 0.6f), true);
+                P(-8, -1, 16, 1, Mul(body, 1.25f), true);
+                for (int i = 0; i < 4; i++)
+                    P(-7 + i * 4, 1, 2, 1, ((int)(t * 10) + i) % 4 == 0 ? Yellow : Mul(body, 0.6f), true);
                 break;
         }
-        Flush(cx, cy, facing, alpha, over);
+        Flush(cx, cy - Pivot, facing, alpha, over, rot);
     }
 
-    public static void Turret(int cx, int fy, int facing, Era e, float t, Color? over)
+    public static void Turret(int cx, int fy, int facing, Era e, float t, float recoil, Color? over)
     {
         np = 0;
         P(-7, -6, 14, 6, e.SteelDark); P(-6, -5, 12, 1, e.Steel, true);
-        P(-4, -10, 8, 4, e.Steel); P(3, -9, 8, 3, Mul(e.SteelDark, 0.8f));
+        P(-4, -10, 8, 4, e.Steel); P(-3, -10, 5, 1, Mul(e.Steel, 1.25f), true);
+        P(3 - (int)recoil, -9, 8, 3, Mul(e.SteelDark, 0.8f));
         P(-1, -9, 2, 2, (int)(t * 4) % 2 == 0 ? Red : Mul(Red, 0.4f), true);
         Flush(cx, fy, facing, 1, over);
     }
 
-    public static void Barrel(int cx, int fy, bool blink)
+    public static void Barrel(int cx, int fy, bool blink, float wobble)
     {
         np = 0;
         var red = blink ? White : Hex(0xd8342a);
-        P(-4, -10, 8, 10, red); P(-4, -8, 8, 1, Yellow, true); P(-4, -3, 8, 1, Yellow, true);
-        P(-2, -7, 3, 3, Ink, true); P(-3, -10, 2, 10, Mul(red, 1.25f), true);
+        int w = (int)wobble;
+        P(-4 + w, -10, 8, 10, red); P(-4 + w, -8, 8, 1, Yellow, true); P(-4 + w, -3, 8, 1, Yellow, true);
+        P(-2 + w, -7, 3, 3, Ink, true); P(-3 + w, -10, 2, 10, Mul(red, 1.25f), true);
+        P(2 + w, -10, 2, 10, Mul(red, 0.75f), true);
         Flush(cx, fy, 1, 1, null);
     }
 
     public static void Cage(int cx, int fy, float t, int ch)
     {
-        // prisioneiro dentro
         var look = Chars.All[ch % Chars.All.Length].Look;
-        bool wave = MathF.Sin(t * 6) > 0;
-        Humanoid(cx, fy - 1, 1, look, 0, false, false, 0, 1, null, wave);
-        // grades
+        bool wave = MathF.Sin(t * 2.2f) > 0;
+        Humanoid(cx, fy - 2, 1, look, Anim.Of(wave ? AState.Cheer : AState.Idle, t));
         var frame = Hex(0x5a4a3a);
-        Box(cx - 8, fy - 24, 16, 2, frame);
-        Box(cx - 8, fy - 2, 16, 2, frame);
-        for (int i = 0; i < 5; i++) Rect(cx - 7 + i * 3, fy - 22, 1, 20, Hex(0x9a9aa8));
-        // bandeira
-        Rect(cx + 7, fy - 34, 1, 10, Ink);
-        Rect(cx + 8, fy - 34 + (int)(MathF.Sin(t * 5) * 1), 6, 4, Red);
-        if (MathF.Sin(t * 2.3f) > 0.4f) Text("SOCORRO!", cx - 20, fy - 44, 10, White, Ink);
+        Box(cx - 9, fy - 28, 18, 2, frame);
+        Box(cx - 9, fy - 2, 18, 2, frame);
+        for (int i = 0; i < 6; i++) Rect(cx - 8 + i * 3, fy - 26, 1, 24, Hex(0x9a9aa8));
+        Rect(cx - 8, fy - 26, 1, 24, Hex(0xd0d0dc));
+        Rect(cx + 8, fy - 38, 1, 10, Ink);
+        int fl = (int)(t * 8) % 3;
+        Rect(cx + 9, fy - 38, 5 + (fl == 1 ? 1 : 0), 2, Red);
+        Rect(cx + 9, fy - 36, 4 + fl, 2, Mul(Red, 0.8f));
+        if (MathF.Sin(t * 2.3f) > 0.4f) TextC("SOCORRO!", cx, fy - 48 - (int)(MathF.Abs(MathF.Sin(t * 8)) * 2), 10, White, Ink);
     }
 
     public static void Glorb(int cx, int cy, float t)
     {
         float p = 0.5f + 0.5f * MathF.Sin(t * 6);
-        Raylib.DrawCircle(cx, cy, 5 + p * 2, A(Cyan, 0.25f));
-        Raylib.DrawCircle(cx, cy, 4, Ink);
-        Raylib.DrawCircle(cx, cy, 3, Col.Lerp(Cyan, Magenta, p));
-        Rect(cx - 1, cy - 2, 1, 1, White);
+        PixelCircle(cx, cy, 4, Ink);
+        PixelCircle(cx, cy, 3, Col.Lerp(Cyan, Magenta, p));
+        Rect(cx - 1, cy - 2, 2, 1, White);
+        if (((int)(t * 5) & 3) == 0) { Rect(cx + 4, cy - 4, 1, 1, White); Rect(cx + 3, cy - 5, 3, 1, A(White, 0.5f)); }
+    }
+
+    /// <summary>Clarao de disparo: cone de fogo na direcao do tiro, alternando formatos.</summary>
+    public static void MuzzleStar(int x, int y, int dir, int size, int frame, Color c)
+    {
+        int f = frame & 1;
+        int len = size * 2 + 2 + f * 2;
+        for (int i = 0; i < len; i++)
+        {
+            int h = Math.Max(1, (int)((size + 1) * MathF.Sin((i + 1) / (float)(len + 1) * MathF.PI)));
+            Rect(x + dir * i - (dir < 0 ? 0 : 0), y - h / 2, 1, h, i < len / 3 ? White : c);
+        }
+        Rect(x + dir * (len / 2), y - size - 1 - f, 1, size * 2 + 3 + f * 2, A(c, 0.8f));
+        PixelCircle(x, y, Math.Max(1, size / 2 + f), White);
     }
 
     public static void Text(string s, int x, int y, int size, Color c, Color? outline = null)
@@ -242,4 +215,8 @@ public static class Gfx
 
     public static void Line(float x0, float y0, float x1, float y1, Color c) =>
         Raylib.DrawLineV(new Vector2(x0, y0), new Vector2(x1, y1), c);
+
+    /// <summary>Brilho suave (usar dentro do modo de mistura aditivo).</summary>
+    public static void Glow(float x, float y, float r, Color c, float a) =>
+        Raylib.DrawCircleGradient(new Vector2(x, y), r, A(c, a), A(c, 0));
 }

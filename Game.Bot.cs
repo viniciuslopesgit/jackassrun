@@ -8,6 +8,7 @@ public sealed partial class Game
 {
     readonly string? bot = Environment.GetEnvironmentVariable("JACKASS_AUTOTEST");
     int botFrame, shots;
+    readonly int shotStart = int.TryParse(Environment.GetEnvironmentVariable("JACKASS_SHOT_START"), out var ss) ? ss : 0;
     readonly int shotEvery = int.TryParse(Environment.GetEnvironmentVariable("JACKASS_SHOT_EVERY"), out var se) ? se : 75;
 
     InputState BotInput()
@@ -38,17 +39,16 @@ public sealed partial class Game
         return i;
     }
 
-    void BotCapture(RenderTexture2D rt)
+    void BotCapture()
     {
-        if (botFrame % shotEvery == 0 && shots < 40)
+        if (botFrame >= shotStart && (botFrame - shotStart) % shotEvery == 0 && shots < 40)
         {
-            var img = Raylib.LoadImageFromTexture(rt.Texture);
-            Raylib.ImageFlipVertical(ref img);
+            var img = Raylib.LoadImageFromScreen();
             Directory.CreateDirectory(bot!);
             Raylib.ExportImage(img, Path.Combine(bot!, $"shot_{shots:D2}_{mode}.png"));
             Raylib.UnloadImage(img);
             shots++;
         }
-        if (botFrame > shotEvery * 40) quit = true;
+        if (botFrame > shotStart + shotEvery * 40) quit = true;
     }
 }

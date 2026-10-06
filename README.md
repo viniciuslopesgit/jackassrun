@@ -31,6 +31,7 @@ Segure contra uma parede no ar para escalar.
 - **Salvar seu eu do passado**: mate o inimigo que matou seu fantasma antes da hora e ganhe um escudo.
 - **Prisioneiros nas jaulas**: +1 Time Out. **Glorbs**: 12 dão +1 especial.
 - **Terreno destrutível**: balas quebram tijolos/terra/caixotes; explosões abrem crateras. Aço é indestrutível.
+- **Desabamentos**: estruturas sem apoio (sem chão embaixo nem aço segurando) caem e esmagam quem estiver embaixo.
 - **Eras** a cada 200 m: Selva 1985 → Jurássico → Idade Média → Futuro Neon (e repete, mais rápido).
 
 ## Heróis

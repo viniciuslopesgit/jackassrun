@@ -75,6 +75,7 @@ public struct Look
 {
     public Color Skin, Hair, Shirt, Pants, Boots, Gun, Accent;
     public byte Hat, Bulk, GunLen, GunH;
+    public byte Wpn;          // arma desenhada: ver Sprites.Guns
     public bool Blade;
 }
 
@@ -91,28 +92,28 @@ public static class Chars
     {
         new CharDef {
             Name = "JEAN ROCKFIRE", Tag = "O CLASSICO", Weapon = "METRALHADORA", Special = "GRANADA", FireRate = 0.085f,
-            Look = new Look { Skin = Hex(0xf2b98a), Hair = Hex(0x3a2418), Shirt = Hex(0x4f7a2a), Pants = Hex(0x5b4a2e),
-                Boots = Hex(0x2a1e14), Gun = Hex(0x3b3f4a), Accent = Hex(0xd8282c), Hat = 0, GunLen = 7, GunH = 2 },
+            Look = new Look { Skin = Hex(0xdaa98c), Hair = Hex(0x141018), Shirt = Hex(0x2c4a28), Pants = Hex(0x5a3c26),
+                Boots = Hex(0x0c0c12), Gun = Hex(0x2e3238), Accent = Hex(0xc0241c), Hat = 0, GunLen = 7, GunH = 2, Wpn = 0 },
         },
         new CharDef {
             Name = "SHOTGUN SHEILA", Tag = "ESTRAGO DE PERTO", Weapon = "ESCOPETA", Special = "DINAMITE", FireRate = 0.42f,
             Look = new Look { Skin = Hex(0xf5c49c), Hair = Hex(0xf0d048), Shirt = Hex(0x3a5ea8), Pants = Hex(0x2c3e6e),
-                Boots = Hex(0x4a2a16), Gun = Hex(0x6a4a2a), Accent = Hex(0x8a5a2a), Hat = 8, GunLen = 8, GunH = 2 },
+                Boots = Hex(0x4a2a16), Gun = Hex(0x6a4a2a), Accent = Hex(0x8a5a2a), Hat = 8, GunLen = 8, GunH = 2, Wpn = 2 },
         },
         new CharDef {
             Name = "DOC CHRONO", Tag = "CIENTISTA LOUCO", Weapon = "LASER PERFURANTE", Special = "CONGELAR TEMPO", FireRate = 0.3f,
             Look = new Look { Skin = Hex(0xe8b088), Hair = Hex(0xeeeef6), Shirt = Hex(0xe4e4ea), Pants = Hex(0x4a4a6a),
-                Boots = Hex(0x2a2a3a), Gun = Hex(0x3ac8ff), Accent = Hex(0x36e0ff), Hat = 2, GunLen = 7, GunH = 2 },
+                Boots = Hex(0x2a2a3a), Gun = Hex(0x3ac8ff), Accent = Hex(0x36e0ff), Hat = 2, GunLen = 7, GunH = 2, Wpn = 3 },
         },
         new CharDef {
             Name = "BLASTRONAUTA", Tag = "TUDO EXPLODE", Weapon = "BAZUCA", Special = "JATO EXPLOSIVO", FireRate = 0.55f, Speed = 80f,
             Look = new Look { Skin = Hex(0xc08060), Hair = Hex(0xf4f4f4), Shirt = Hex(0xe87a1e), Pants = Hex(0xd06a16),
-                Boots = Hex(0x4a4a4a), Gun = Hex(0x55702f), Accent = Hex(0x59d6ff), Hat = 4, GunLen = 10, GunH = 3 },
+                Boots = Hex(0x4a4a4a), Gun = Hex(0x55702f), Accent = Hex(0x59d6ff), Hat = 4, GunLen = 10, GunH = 3, Wpn = 4 },
         },
         new CharDef {
             Name = "NAOMI KATANA", Tag = "LAMINA RAPIDA", Weapon = "KATANA", Special = "DASH SOMBRIO", FireRate = 0.2f, Speed = 98f,
-            Look = new Look { Skin = Hex(0xf0c0a0), Hair = Hex(0x1c1c2a), Shirt = Hex(0x2a2a40), Pants = Hex(0x1c1c2a),
-                Boots = Hex(0x101018), Gun = Hex(0xdfe8f0), Accent = Hex(0xe0283c), Hat = 3, GunLen = 10, GunH = 1, Blade = true },
+            Look = new Look { Skin = Hex(0xf0c0a0), Hair = Hex(0x1c1c2a), Shirt = Hex(0x33335a), Pants = Hex(0x454570),
+                Boots = Hex(0x101018), Gun = Hex(0xdfe8f0), Accent = Hex(0xe0283c), Hat = 3, GunLen = 10, GunH = 1, Blade = true, Wpn = 5 },
         },
     };
 }
