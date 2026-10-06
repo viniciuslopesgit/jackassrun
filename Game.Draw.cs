@@ -122,10 +122,12 @@ public sealed partial class Game
                 // parede de fundo: aparece onde nao ha bloco solido na frente (vazio, escada, ponte, porta)
                 if (type == 0 || Terrain.Passable(type) || type == Terrain.DOOR)
                 {
-                    if (InHouse(tx, ty))
+                    if (InHouse(tx, ty) || Terrain.BackOf(b) == Terrain.BACK_HOUSE)
                     {
                         // dentro das casas (e atras das portas e paredes, para quando forem destruidas)
-                        int win = ty == HouseTop(tx, ty) && Hash.H(tx, 991) % 3 == 0 ? 1 : 0;
+                        int top = HouseTop(tx, ty);
+                        int win = (top >= 0 ? ty == top : Ter.Solid(tx, ty - 1) && Terrain.BackOf(Ter.Get(tx, ty + 1)) == Terrain.BACK_HOUSE)
+                                  && Hash.H(tx, 991) % 3 == 0 ? 1 : 0;
                         Raylib.DrawTextureRec(Art.HouseWall, new Rectangle(ei * K.T, win * K.T, K.T, K.T),
                             new Vector2(tx * K.T - cam, ty * K.T - camY + shY), Color.White);
                         BackShade(tx, ty);
@@ -249,6 +251,21 @@ public sealed partial class Game
                 int stage = Math.Clamp((dmg * 3 + Terrain.HpOf(type) - 1) / Terrain.HpOf(type), 1, 3);
                 Raylib.DrawTextureRec(tex, new Rectangle((3 + stage) * K.T, 3 * K.T, K.T, K.T), new Vector2(x, y), Color.White);
             }
+            return;
+        }
+        if (type == Terrain.ROOF)
+        {
+            // telhado: pontas com beiral, meio com telhas; enfeite (antena, chamine) em cima de alguns
+            bool l = Ter.Type(tx - 1, ty) != Terrain.ROOF, r = Ter.Type(tx + 1, ty) != Terrain.ROOF;
+            int part = l && !r ? 0 : r && !l ? 2 : 1;
+            Raylib.DrawTextureRec(Art.Roof, new Rectangle(part * K.T, era * K.T, K.T, K.T), new Vector2(x, y), Color.White);
+            if (dmg > 0)
+            {
+                int stage = Math.Clamp((dmg * 3 + Terrain.HpOf(type) - 1) / Terrain.HpOf(type), 1, 3);
+                Raylib.DrawTextureRec(tex, new Rectangle((3 + stage) * K.T, 3 * K.T, K.T, K.T), new Vector2(x, y), Color.White);
+            }
+            if (decor && upE && part == 1 && Ter.Type(tx, ty - 1) == 0 && hsh % 5 == 0)
+                Raylib.DrawTextureRec(Art.Roof, new Rectangle(3 * K.T, era * K.T, K.T, K.T), new Vector2(x, y - K.T), Color.White);
             return;
         }
         if (type == Terrain.LADDER)
@@ -377,11 +394,26 @@ public sealed partial class Game
                 case EnemyKind.Turret:
                     Art.Cell(Art.Turrets[ei], ((int)(e.AnimT * 4) % 2) + (e.MuzzleT > 0 ? 2 : 0), 0, x, y, e.Facing, 0, over ?? tint, hurt);
                     break;
+                case EnemyKind.Dog:
+                {
+                    int hop = e.AlertT > 0 ? (int)(MathF.Sin((1 - e.AlertT / Tune.DogGrowl) * MathF.PI) * 2) : 0;
+                    if (e.Para) Art.Cell(Art.Parachute, 0, 0, x, y - e.Height - 1, 1, 0, tint);
+                    Art.Cell(Art.Dogs[ei], e.StunT > 0 ? 0 : DogFrame(e), 0, x, y - hop, e.Facing, 0, over ?? tint, hurt);
+                    if (e.StunT > 0)
+                        for (int k = 0; k < 3; k++)
+                        {
+                            float a = time * 7 + k * 2.09f;
+                            Rect(x + (int)(MathF.Cos(a) * 5), y - 15 + (int)(MathF.Sin(a) * 2), 2, 2, k == 0 ? White : Yellow);
+                        }
+                    break;
+                }
                 default:
                 {
                     Anim an;
                     int hop = 0;
+                    if (e.Kind == EnemyKind.Sniper && e.AimT > 0) DrawLaser(e);
                     if (e.HurtT > 0 || e.StunT > 0) an = Anim.Of(AState.Hurt, e.AnimT);
+                    else if (e.Kind == EnemyKind.Grenadier && e.AimT > 0) an = Anim.Of(AState.Cheer, 0);     // braco erguido: granada!
                     else if (e.AlertT > 0)
                     {
                         an = Anim.Of(AState.Jump, e.AnimT);
@@ -392,6 +424,22 @@ public sealed partial class Game
                     bool fuse = e.FuseT >= 0 && (int)(time * 14) % 2 == 0;
                     if (e.Para) Art.Cell(Art.Parachute, 0, 0, x, y - e.Height - 1, 1, 0, tint);
                     Art.Human(Art.Grunts[ei, DesignExport.GruntIndex(e.Kind)], x, y - hop, e.Facing, an, 1, fuse ? Red : over, tint);
+                    if (e.Kind == EnemyKind.Flamer && e.StunT <= 0)
+                    {
+                        // chama piloto na ponta do lanca-chamas (cresce quando solta o jato)
+                        int px = x + e.Facing * 9, py = y - 8;
+                        bool big = e.AimT > 0;
+                        int fl = (int)(time * 20) % 2;
+                        Rect(px - (e.Facing < 0 ? 1 + fl : 0), py - 1, 2 + fl, 2, big ? Yellow : Orange);
+                        if (big) Rect(px - 1, py - 2, 3, 1, A(White, 0.8f));
+                    }
+                    if (e.Kind == EnemyKind.Grenadier && e.AimT > 0)
+                    {
+                        // granada na mao erguida, piscando
+                        bool on = (int)(time * 16) % 2 == 0;
+                        Rect(x - e.Facing * 1 - 1, y - 24, 3, 3, Hex(0x4e6e2c));
+                        if (on) Rect(x - e.Facing * 1, y - 25, 1, 1, Red);
+                    }
                     if (e.StunT > 0)
                         for (int k = 0; k < 3; k++)
                         {
@@ -405,7 +453,7 @@ public sealed partial class Game
             if (e.AlertT > 0)
             {
                 float k = 1 - e.AlertT / 0.5f;
-                int by = y - (e.Kind == EnemyKind.Brute ? 38 : 34) - (int)(MathF.Sin(k * MathF.PI) * 6);
+                int by = y - (e.Kind switch { EnemyKind.Brute => 38, EnemyKind.Dog => 26, _ => 34 }) - (int)(MathF.Sin(k * MathF.PI) * 6);
                 int grow = k < 0.2f ? 1 : 0;
                 Rect(x - 2 - grow, by - grow, 4 + grow * 2, 8 + grow, Red);
                 Rect(x - 1, by + 1, 2, 4, White); Rect(x - 1, by + 6, 2, 1, White);
@@ -418,6 +466,19 @@ public sealed partial class Game
                 Rect(x - 7, top, 14 * e.Hp / max, 2, Red);
             }
         }
+    }
+
+    /// <summary>Mira laser do atirador de elite: fina e fraca ao comecar, forte e piscando quando trava.</summary>
+    void DrawLaser(Enemy e)
+    {
+        var (lx, ly) = LaserEnd(e);
+        int x0 = SX(e.X + e.Facing * 11), y0 = SY(e.Y - 8), x1 = SX(lx), y1 = SY(ly);
+        bool locked = e.AimT > Tune.SniperAim - Tune.SniperLock;
+        float k = Math.Clamp(e.AimT / Tune.SniperAim, 0, 1);
+        var c = locked ? ((int)(time * 30) % 2 == 0 ? White : Red) : A(Red, 0.25f + 0.55f * k);
+        Raylib.DrawLine(x0, y0, x1, y1, c);
+        if (locked) Raylib.DrawLine(x0, y0 + 1, x1, y1 + 1, A(Red, 0.5f));
+        Rect(x1 - 1, y1 - 1, 3, 3, A(c, 0.9f));
     }
 
     /// <summary>Salas de predio ainda nao reveladas ficam no breu (some aos poucos ao revelar).</summary>
@@ -439,7 +500,7 @@ public sealed partial class Game
             float a = c.Life < 0.35f ? ((int)(c.Life * 20) % 2 == 0 ? 0.3f : 1f) : 1f;
             int rot = (((int)MathF.Round(c.Angle / 90f)) % 4 + 4) % 4;
             int x = SX(c.X), y = SY(c.Y);
-            if (c.IsFlyer) Art.Cell(c.Sprite, 0, 0, x, y, c.Facing, rot, A(White, a));
+            if (c.IsFlyer) Art.Cell(c.Sprite, c.Cell, 0, x, y, c.Facing, rot, A(White, a));
             else
             {
                 var an = Anim.Of(c.Rest ? AState.Hurt : AState.Tumble, c.T);
@@ -528,14 +589,27 @@ public sealed partial class Game
                 }
                 continue;
             }
+            if (b.Kind == BulletKind.EFlame)
+            {
+                // fogo: branco/amarelo no comeco, laranja, depois vermelho escuro e some
+                float age = 1 - b.Life / 0.4f;
+                int r = 2 + (int)(age * 3) + ((b.Id + (int)(time * 20)) & 1);
+                var c = age < 0.2f ? Hex(0xfff2a0) : age < 0.5f ? Yellow : age < 0.75f ? Orange : Hex(0xc8381e);
+                PixelCircle(x, y, r, A(c, 1 - age * 0.6f));
+                if (age < 0.6f) PixelCircle(x, y, Math.Max(1, r - 2), A(Hex(0xfff8d0), 0.8f - age));
+                continue;
+            }
             int col = b.Kind switch
             {
+                BulletKind.EGrenade => Art.ProjGrenade,
                 BulletKind.Bullet => Art.ProjBullet, BulletKind.Pellet => Art.ProjPellet, BulletKind.Laser => Art.ProjLaser,
                 BulletKind.Rocket => Art.ProjRocket, BulletKind.ERocket => Art.ProjERocket, BulletKind.Grenade => Art.ProjGrenade,
                 BulletKind.Dynamite => Art.ProjDynamite, BulletKind.EBomb => Art.ProjBomb, BulletKind.Batarang => Art.ProjBatarang,
                 BulletKind.Web => Art.ProjWeb, BulletKind.Arrow => Art.ProjArrow, _ => Art.ProjEBullet,
             };
-            int frame = b.Kind is BulletKind.Grenade ? (int)(b.T * 10) % 2 : (int)(time * (b.Kind == BulletKind.Batarang ? 30 : 20)) % 2;
+            int frame = b.Kind is BulletKind.Grenade ? (int)(b.T * 10) % 2
+                : b.Kind == BulletKind.EGrenade ? (int)(b.T * (b.Life < 0.45f ? 24 : 9)) % 2       // pisca mais rapido antes de explodir
+                : (int)(time * (b.Kind == BulletKind.Batarang ? 30 : 20)) % 2;
             var tint = b.Kind == BulletKind.EBullet ? (b.FromPlayer ? Yellow : Eras.ForX(b.X).EBullet) : White;
             Art.Cell(Art.Proj, col, frame, x, y, d, 0, A(tint, a));
         }

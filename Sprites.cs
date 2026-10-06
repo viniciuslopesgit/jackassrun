@@ -267,6 +267,42 @@ public static class Sprites
             ".gGGGG..",
             "SSg.....",
         }, 2, -9, 9, -9),
+        // 11 escudo alto com visor (escudeiro): cobre o corpo inteiro pela frente
+        new(new[] {
+            ".gG.",
+            ".gGM",
+            ".gGG",
+            ".gWG",
+            ".gWG",
+            ".gGG",
+            ".gGG",
+            "SgRG",
+            ".gRG",
+            ".gGG",
+            ".gGG",
+            ".gGG",
+            ".gGg",
+            "..g.",
+        }, 2, -17, 6, -9),
+        // 12 granada na mao (granadeiro)
+        new(new[] {
+            "..gG",
+            ".SGM",
+            ".Sg.",
+        }, 3, -10, 6, -10),
+        // 13 fuzil de precisao com luneta (atirador de elite)
+        new(new[] {
+            "......gGGGg.......",
+            ".......g.g........",
+            "gGGGGGGGGGGGGGGGGM",
+            ".S..gg.....S......",
+        }, -6, -10, 11, -8),
+        // 14 lanca-chamas (bico com chama piloto na ponta)
+        new(new[] {
+            ".....gGGGGGg..",
+            "gGGGGGGGGGGGMR",
+            ".S..gg.....S..",
+        }, -6, -9, 8, -8),
     };
 
     public static Gun GunOf(in Look l) => Guns[Math.Min(l.Wpn, (byte)(Guns.Length - 1))];
@@ -417,6 +453,18 @@ public static partial class Gfx
                 int w = 1 + k / 3 + (int)(flow * k / 5) + (int)MathF.Round(MathF.Sin(t * 12 + k * 0.6f) * flow);
                 P(-3 - w + lean, y, w + 1, 1, k % 4 == 1 ? cl : cc);
             }
+        }
+
+        // --- tanque de combustivel nas costas (lanca-chamas)
+        if (L.Tank)
+        {
+            var tk = L.Accent;
+            int ty0 = -14 + bob;
+            P(-9 - B + lean, ty0, 4, 10, Mul(tk, 0.78f));
+            P(-9 - B + lean, ty0 + 1, 1, 8, Mul(tk, 1.15f));
+            P(-6 - B + lean, ty0 + 1, 1, 8, Mul(tk, 0.55f));
+            P(-8 - B + lean, ty0 - 1, 2, 1, Hex(0x5a5a62));
+            P(-9 - B + lean, ty0 + 4, 4, 1, Hex(0x3a3a40));
         }
 
         // --- pernas

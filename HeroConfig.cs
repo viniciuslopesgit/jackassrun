@@ -25,12 +25,13 @@ public sealed class HeroStats
     public int DanoFacada;              // dano da facada (soldado tem 2 de vida, bazuqueiro 3, brutamontes 8)
     public float AlcanceFacada;         // distancia em pixels a frente do heroi em que a facada acerta
 
-    // dano do tiro nos blocos (vida de cada bloco: terra 8, tijolo 5, caixa 3, porta 2, ponte 2; aco e rocha nao quebram)
+    // dano do tiro nos blocos (vida de cada bloco: terra 8, tijolo 5, caixa 3, porta 2, ponte 2, telhado 3; aco e rocha nao quebram)
     public int DanoTerra;               // dano por tiro num bloco de terra
     public int DanoTijolo;              // dano por tiro num bloco de tijolo
     public int DanoCaixa;               // dano por tiro numa caixa de madeira
     public int DanoPorta;               // dano por tiro numa porta
     public int DanoPonte;               // dano por tiro numa tabua de ponte (vida 2)
+    public int DanoTelhado;             // dano por tiro num bloco de telhado (vida 3)
 
     /// <summary>Dano do tiro deste heroi num tipo de bloco (Terrain.DIRT, BRICK...).</summary>
     public int DanoBloco(int type) => type switch
@@ -40,6 +41,7 @@ public sealed class HeroStats
         Terrain.CRATE => DanoCaixa,
         Terrain.DOOR => DanoPorta,
         Terrain.BRIDGE => DanoPonte,
+        Terrain.ROOF => DanoTelhado,
         _ => DanoTiro,
     };
 
@@ -87,6 +89,7 @@ public static class HeroConfig
             DanoCaixa = 2,
             DanoPorta = 2,
             DanoPonte = 2,
+            DanoTelhado = 2,
 
             EspeciaisIniciais = 3,
             VelocidadeEspecial = 0,
@@ -120,6 +123,7 @@ public static class HeroConfig
             DanoCaixa = 1,
             DanoPorta = 1,
             DanoPonte = 1,
+            DanoTelhado = 1,
             EspeciaisIniciais = 3,
             VelocidadeEspecial = 300,
             RaioEspecial = 28,
@@ -151,6 +155,7 @@ public static class HeroConfig
             DanoCaixa = 1,
             DanoPorta = 1,
             DanoPonte = 1,
+            DanoTelhado = 1,
             EspeciaisIniciais = 3,
             VelocidadeEspecial = 280,
             RaioEspecial = 0,

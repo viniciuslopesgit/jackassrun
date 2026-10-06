@@ -89,6 +89,7 @@ public struct Look
     public byte Wpn;          // arma desenhada: ver Sprites.Guns
     public Color Arms, Belt;  // cor dos bracos (uniforme) e do cinto, quando SuitArms / CustomBelt
     public bool SuitArms, CustomBelt, Cape;
+    public bool Tank;         // tanque de combustivel nas costas (lanca-chamas)
     public bool Blade;
 }
 

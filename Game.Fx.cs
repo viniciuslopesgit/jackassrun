@@ -89,7 +89,7 @@ public sealed partial class Game
         if (e.Kind != EnemyKind.Turret && e.Kind != EnemyKind.Flyer) e.X += kx;
         sfx.Play("hit", 0.5f);
         var era = Eras.ForX(e.X);
-        float cy = e.Kind == EnemyKind.Flyer ? e.Y : e.Y - 11;
+        float cy = e.Kind == EnemyKind.Flyer ? e.Y : e.Kind == EnemyKind.Dog ? e.Y - 6 : e.Y - 11;
         bool metal = e.Kind == EnemyKind.Turret || era.Style == BgStyle.Future || e.Kind == EnemyKind.Flyer && era.Style is BgStyle.Jungle or BgStyle.City;
         if (metal)
             for (int k = 0; k < 5; k++) AddPart(PKind.Spark, e.X, cy, e.HitDir * R(30, 120), R(-90, 30), 0.25f, 1, k % 2 == 0 ? Yellow : White);
@@ -100,19 +100,33 @@ public sealed partial class Game
     void KillEnemy(Enemy e)
     {
         e.Dead = true;
-        int pts = e.Kind switch { EnemyKind.Brute => 300, EnemyKind.Turret => 250, EnemyKind.Flyer => 150, EnemyKind.Rocketeer => 150,
-            EnemyKind.Knife => 150, EnemyKind.Bomber => 200, _ => 100 };
+        int pts = EnemyPoints(e.Kind);
         bool neutral = e.StunT > 0;                        // atordoado vale o dobro
         if (neutral) pts *= 2;
         // homem-bomba abatido explode (acerta inimigos ao redor, nao o heroi)
         if (e.Kind == EnemyKind.Bomber) Explode(e.X, e.Y - 8, 32, true, K.PLAYER_ID);
+        // lanca-chamas abatido: o tanque explode (tambem so acerta inimigos)
+        if (e.Kind == EnemyKind.Flamer) Explode(e.X - e.Facing * 5, e.Y - 10, 26, true, K.PLAYER_ID);
         S.Score += pts; S.Kills++;
         var era = Eras.ForX(e.X);
         var blood = BloodOf(era);
         sfx.Play("edie");
         float cy = e.Kind == EnemyKind.Flyer ? e.Y : e.Y - 11;
-        bool machine = e.Kind == EnemyKind.Turret || e.Kind == EnemyKind.Flyer && era.Style is BgStyle.Future or BgStyle.Jungle or BgStyle.City;
-        if (machine)
+        bool machine = e.Kind == EnemyKind.Turret || e.Kind == EnemyKind.Flyer && era.Style is BgStyle.Future or BgStyle.Jungle or BgStyle.City
+                       || e.Kind == EnemyKind.Dog && era.Style == BgStyle.Future;
+        if (e.Kind == EnemyKind.Dog)
+        {
+            // cao (lobo, raptor, cao-robo): corpo voando com o quadro de salto; o robo solta faiscas e explode
+            if (machine) Explode(e.X, e.Y - 6, 14, true, K.PLAYER_ID);
+            if (e.LastBoom && !machine) Gibs(e.X, e.Y - 6, EnemyLook(era, e.Kind).Skin, EnemyLook(era, e.Kind).Shirt, EnemyLook(era, e.Kind).Pants, blood, 20);
+            else
+            {
+                AddCorpse(e.X, e.Y - 6, Art.DogBodies[Eras.IndexForX(e.X)], e.Facing, e.HitDir, true, era, CorpseLife());
+                corpses[^1].Beast = !machine; corpses[^1].Cell = 5;
+                if (!machine) BloodSpray(e.X, e.Y - 6, e.HitDir, 12, blood, 1.1f);
+            }
+        }
+        else if (machine)
         {
             Explode(e.X, cy, 16, true, K.PLAYER_ID);
             if (e.Kind == EnemyKind.Flyer) AddCorpse(e.X, cy, Art.Flyers[Eras.IndexForX(e.X)], e.Facing, e.HitDir, true, era, CorpseLife());
@@ -191,7 +205,9 @@ public sealed partial class Game
 
     static Color TileColor(int type, Era e) => type switch
     {
-        Terrain.DIRT => e.Dirt, Terrain.BRICK => e.Brick, Terrain.STEEL => e.Steel, Terrain.BEDROCK => e.DirtDark, Terrain.DOOR => Hex(0x9a6432), Terrain.CONCRETE => Hex(0xa8a49c), _ => Hex(0xa8743a),
+        Terrain.DIRT => e.Dirt, Terrain.BRICK => e.Brick, Terrain.STEEL => e.Steel, Terrain.BEDROCK => e.DirtDark, Terrain.DOOR => Hex(0x9a6432), Terrain.CONCRETE => Hex(0xa8a49c),
+        Terrain.ROOF => e.Style switch { BgStyle.City => Hex(0xb04a2a), BgStyle.Medieval => Hex(0x5a6478), BgStyle.Future => Hex(0x3a4a7a), BgStyle.Dino => Hex(0x5a8a2a), _ => Hex(0xb8963a) },
+        _ => Hex(0xa8743a),
     };
 
     // ------------------------------------------------------------------ pontes de madeira
@@ -607,8 +623,8 @@ public sealed partial class Game
             if (c.Rest) continue;
             c.VY += K.GRAV * dt;
             c.Angle += c.Spin * dt;
-            if (c.IsFlyer && fx.Next(3) == 0) AddPart(PKind.Smoke, c.X, c.Y, 0, -10, 0.6f, 2, SmokeDark);
-            if (!c.IsFlyer && fx.Next(4) == 0) AddPart(PKind.Blood, c.X, c.Y, R(-20, 20), 0, 0.8f, 1, c.Era != null ? BloodOf(c.Era) : BloodRed, 540);
+            if (c.IsFlyer && !c.Beast && fx.Next(3) == 0) AddPart(PKind.Smoke, c.X, c.Y, 0, -10, 0.6f, 2, SmokeDark);
+            if ((!c.IsFlyer || c.Beast) && fx.Next(4) == 0) AddPart(PKind.Blood, c.X, c.Y, R(-20, 20), 0, 0.8f, 1, c.Era != null ? BloodOf(c.Era) : BloodRed, 540);
             float nx = c.X + c.VX * dt, ny = c.Y + c.VY * dt;
             if (Ter.SolidAt(nx, c.Y)) { c.VX *= -0.4f; nx = c.X; }
             if (c.VY > 0 && Ter.StandAt(nx, ny + 4))
@@ -617,7 +633,7 @@ public sealed partial class Game
                 c.Bounces++;
                 c.VY *= -0.35f; c.VX *= 0.55f; c.Spin *= 0.5f;
                 AddPart(PKind.Smoke, nx, ny + 4, 0, -6, 0.3f, 1.5f, Hex(0xe8dcc8));
-                if (!c.IsFlyer)
+                if (!c.IsFlyer || c.Beast)
                     for (int k = 0; k < 3; k++) AddDecal(nx + R(-4, 4), ny + 4 + R(0, 2), c.Era != null ? BloodOf(c.Era) : BloodRed);
                 if (c.Bounces >= 2 || MathF.Abs(c.VY) < 40)
                 {

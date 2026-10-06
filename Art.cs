@@ -26,12 +26,12 @@ public static class Art
     public static string Root { get; private set; } = "design";
     public static Sheet[] Heroes = Array.Empty<Sheet>();
     public static Sheet[,] Grunts = new Sheet[0, 0];
-    public static Sheet[] Flyers = Array.Empty<Sheet>(), Turrets = Array.Empty<Sheet>();
+    public static Sheet[] Flyers = Array.Empty<Sheet>(), Turrets = Array.Empty<Sheet>(), Dogs = Array.Empty<Sheet>(), DogBodies = Array.Empty<Sheet>();
     public static Sheet Barrel = null!, Glorb = null!, Cage = null!, Proj = null!, Hostage = null!, Parachute = null!, Car = null!;
     public static Texture2D[] Backs = Array.Empty<Texture2D>();     // paredes de fundo por era (tiles/fundo_<era>.png)
     public static Texture2D[] Tiles = Array.Empty<Texture2D>(), Sky = Array.Empty<Texture2D>(),
         Far = Array.Empty<Texture2D>(), Mid = Array.Empty<Texture2D>();
-    public static Texture2D Bridge, Ladder, HouseWall, Concrete;
+    public static Texture2D Bridge, Ladder, HouseWall, Concrete, Roof;
     /// <summary>Sprite da arma principal de cada heroi (sprites/herois/NOME/armour/*.png), se existir.</summary>
     public static Texture2D?[] HeroWeapon = Array.Empty<Texture2D?>();
     static readonly List<Texture2D> loaded = new();
@@ -74,7 +74,7 @@ public static class Art
             LoadAnims(Heroes[i], Path.ChangeExtension(hp, null));     // ex.: sprites/herois/batman/running/
         }
         Grunts = new Sheet[eras, DesignExport.GruntSlug.Length];
-        Flyers = new Sheet[eras]; Turrets = new Sheet[eras];
+        Flyers = new Sheet[eras]; Turrets = new Sheet[eras]; Dogs = new Sheet[eras]; DogBodies = new Sheet[eras];
         Tiles = new Texture2D[eras]; Backs = new Texture2D[eras]; Sky = new Texture2D[eras]; Far = new Texture2D[eras]; Mid = new Texture2D[eras];
         for (int e = 0; e < eras; e++)
         {
@@ -82,6 +82,8 @@ public static class Art
                 Grunts[e, k] = Make(DesignExport.GruntPath(Root, e, k), cw, ch, DesignExport.AX, DesignExport.AY, Gfx.Pivot);
             Flyers[e] = Make(DesignExport.FlyerPath(Root, e), 32, 24, 16, 12, 0);
             Turrets[e] = Make(DesignExport.TurretPath(Root, e), 32, 16, 12, 15, 0);
+            Dogs[e] = Make(DesignExport.DogPath(Root, e), DesignExport.DogW, DesignExport.DogH, DesignExport.DogW / 2, DesignExport.DogH - 1, 0);
+            DogBodies[e] = Make(DesignExport.DogPath(Root, e), DesignExport.DogW, DesignExport.DogH, DesignExport.DogW / 2, DesignExport.DogH / 2, 0);   // corpo (gira no centro)
             Tiles[e] = Tex(DesignExport.TilesPath(Root, e));
             Backs[e] = Tex(DesignExport.TilePath(Root, "fundo_" + DesignExport.EraSlug[e]));
             Sky[e] = Tex(DesignExport.BgPath(Root, e, "ceu"));
@@ -94,6 +96,7 @@ public static class Art
         Ladder = Tex(DesignExport.TilePath(Root, "escada"));
         HouseWall = Tex(DesignExport.TilePath(Root, "parede"));
         Concrete = Tex(DesignExport.TilePath(Root, "concreto"));
+        Roof = Tex(DesignExport.TilePath(Root, "telhado"));
         Hostage = Make(DesignExport.PropPath(Root, "refem"), cw, ch, DesignExport.AX, DesignExport.AY, Gfx.Pivot);
         Barrel = Make(DesignExport.PropPath(Root, "barril"), 16, 16, 8, 15, 0);
         Glorb = Make(DesignExport.PropPath(Root, "glorb"), 16, 16, 8, 8, 0);

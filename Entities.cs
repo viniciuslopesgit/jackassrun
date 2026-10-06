@@ -5,7 +5,15 @@ namespace JackassRun;
 // Todas as entidades do mundo tem so campos de valor, entao MemberwiseClone basta
 // para tirar o snapshot usado pela mecanica de rebobinar o tempo.
 
-public enum EnemyKind { Soldier, Rocketeer, Brute, Flyer, Turret, Knife, Bomber }
+public enum EnemyKind
+{
+    Soldier, Rocketeer, Brute, Flyer, Turret, Knife, Bomber,
+    Shield,      // escudeiro: escudo na frente bloqueia tiros; ataque por tras, por cima ou com explosao
+    Grenadier,   // granadeiro: joga granadas em arco (passam por cima de coberturas e acertam outras alturas)
+    Sniper,      // atirador de elite: mira laser vermelha antes do tiro rapido
+    Flamer,      // lanca-chamas: jato de fogo de perto; o tanque explode quando ele morre
+    Dog,         // cao de ataque: corre e salta no heroi (mordida mata)
+}
 
 public sealed class Enemy
 {
@@ -20,10 +28,12 @@ public sealed class Enemy
     public float EnterT;                 // entrando correndo pela direita (emboscada): ignora a IA ate acabar
     public bool Para;                    // descendo de paraquedas
     public int LadderDir, LadderCol = int.MinValue;   // -1 sobe, 1 desce; ultima coluna de escada avaliada
+    public float AimT, AimX, AimY;      // mira (atirador de elite), preparo da granada, jato (lanca-chamas), salto (cao)
+    public float TurnT;                 // escudeiro: tempo com o alvo nas costas antes de virar
     public Enemy Clone() => (Enemy)MemberwiseClone();
 
-    public float HalfW => Kind switch { EnemyKind.Brute => 6, EnemyKind.Turret => 7, EnemyKind.Flyer => 7, _ => 4 };
-    public float Height => Kind switch { EnemyKind.Brute => 23, EnemyKind.Turret => 11, EnemyKind.Flyer => 9, _ => 19 };
+    public float HalfW => Kind switch { EnemyKind.Brute => 6, EnemyKind.Turret => 7, EnemyKind.Flyer => 7, EnemyKind.Dog => 6, _ => 4 };
+    public float Height => Kind switch { EnemyKind.Brute => 23, EnemyKind.Turret => 11, EnemyKind.Flyer => 9, EnemyKind.Dog => 11, _ => 19 };
     /// <summary>Caixa de colisao. Para voadores Y e o centro; para os demais, Y sao os pes.</summary>
     public (float x0, float y0, float x1, float y1) Box =>
         Kind == EnemyKind.Flyer
@@ -31,7 +41,7 @@ public sealed class Enemy
             : (X - HalfW, Y - Height, X + HalfW, Y);
 }
 
-public enum BulletKind { Bullet, Pellet, Laser, Rocket, Grenade, Dynamite, Slash, EBullet, ERocket, EBomb, Batarang, Web, Arrow }
+public enum BulletKind { Bullet, Pellet, Laser, Rocket, Grenade, Dynamite, Slash, EBullet, ERocket, EBomb, Batarang, Web, Arrow, EGrenade, EFlame }
 
 public sealed class Bullet
 {
@@ -165,8 +175,8 @@ public sealed class Ghost
 /// Toda alteracao entra num log com o frame, para poder ser desfeita ao rebobinar.</summary>
 public sealed class Terrain
 {
-    public const int EMPTY = 0, DIRT = 1, BRICK = 2, STEEL = 3, CRATE = 4, BEDROCK = 5, DOOR = 6, BRIDGE = 7, LADDER = 8, CONCRETE = 9;
-    static readonly int[] MaxHp = { 0, 8, 5, 999, 3, 999, 2, 2, 3, 12 };
+    public const int EMPTY = 0, DIRT = 1, BRICK = 2, STEEL = 3, CRATE = 4, BEDROCK = 5, DOOR = 6, BRIDGE = 7, LADDER = 8, CONCRETE = 9, ROOF = 10;
+    static readonly int[] MaxHp = { 0, 8, 5, 999, 3, 999, 2, 2, 3, 12, 3 };
     public static bool Unbreakable(int type) => type == STEEL || type == BEDROCK;
     /// <summary>Ponte e escada nao sao paredes: atravessa-se pelos lados e por baixo.</summary>
     public static bool Passable(int type) => type == BRIDGE || type == LADDER;
@@ -188,7 +198,7 @@ public sealed class Terrain
 
     // bits: 0-3 dano | 4-5 variacao | 6-7 aparencia (0 grama, 1 terra, 2 fundo) | 8-11 tipo | 12-13 parede de fundo
     // A parede de fundo (BACK_*) fica no lugar quando o bloco da frente e destruido.
-    public const int BACK_NONE = 0, BACK_EARTH = 1, BACK_WALL = 2;
+    public const int BACK_NONE = 0, BACK_EARTH = 1, BACK_WALL = 2, BACK_HOUSE = 3;   // HOUSE = parede de dentro de casa
     const ushort BackMask = 0x3000;
     public static int BackOf(ushort b) => (b >> 12) & 3;
     public static int TypeOf(ushort b) => (b >> 8) & 15;
@@ -277,6 +287,8 @@ public sealed class Corpse
     public Look Look;
     public Sheet? Sprite;
     public bool IsFlyer, Rest;
+    public bool Beast;          // animal (cao): desenhado como o voador (um quadro girando), mas sangra
+    public int Cell;            // quadro da folha usado no corpo (voador e cao)
     public Era? Era;
 }
 

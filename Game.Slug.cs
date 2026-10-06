@@ -18,7 +18,7 @@ public sealed partial class Game
             int spawned = 0;
             for (int i = 0; i < a.Count; i++)
             {
-                var e = new Enemy { Id = S.NextId++, Kind = a.Enemy, Hp = a.Enemy == EnemyKind.Brute ? 8 : a.Enemy == EnemyKind.Rocketeer ? 3 : a.Enemy is EnemyKind.Knife or EnemyKind.Bomber ? 1 : 2,
+                var e = new Enemy { Id = S.NextId++, Kind = a.Enemy, Hp = EnemyHp(a.Enemy),
                     Facing = -1, Alerted = true, FireT = Tune.FirstShotDelay + i * 0.4f };
                 if (a.Type == 0)
                 {

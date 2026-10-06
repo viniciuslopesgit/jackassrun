@@ -37,6 +37,28 @@ static class Tune
     public const float AdvanceRange = 100;      // alertado e mais longe que isso: avanca na direcao do heroi
     public const float BridgeFall = 1.5f;       // segundos ate a tabua de madeira pisada pelo heroi cair
     public const float WeaponSpin = 2000;        // graus por segundo do giro do sprite da arma lancada (armour/)
+
+    // inimigos novos
+    public const float ShieldTurn = 0.6f;       // escudeiro: segundos com o heroi nas costas ate virar
+    public const float ShieldRest = 2.2f;       // escudeiro: pausa entre tiros de pistola (+ ate 1s)
+    public const float GrenadeRange = 150;      // granadeiro: distancia maxima do arremesso
+    public const float GrenadeRest = 2.6f;      // granadeiro: pausa entre granadas (+ ate 1s)
+    public const float GrenadeWindup = 0.4f;    // granadeiro: braco erguido antes de jogar (aviso)
+    public const float GrenadeGrav = 520;       // gravidade da granada
+    public const float GrenadeFuse = 0.5f;      // granada explode este tempo depois de cair
+    public const float SniperRange = 250;       // atirador de elite: alcance da mira
+    public const float SniperVRange = 150;      // atirador de elite: alcance vertical
+    public const float SniperAim = 1.3f;        // atirador de elite: segundos mirando ate atirar
+    public const float SniperLock = 0.3f;       // ultimos segundos da mira: travada (nao segue mais o heroi)
+    public const float SniperFollow = 5f;       // rapidez com que a mira segue o heroi
+    public const float SniperSpeed = 290;       // velocidade do tiro do atirador de elite
+    public const float SniperRest = 2.6f;       // pausa depois do tiro
+    public const float FlameRange = 58;         // lanca-chamas: distancia em que comeca o jato
+    public const float FlameTime = 1.0f;        // lanca-chamas: duracao do jato
+    public const float FlameRest = 2.4f;        // lanca-chamas: pausa entre jatos
+    public const float DogSee = 150;            // cao: distancia em que percebe o heroi
+    public const float DogGrowl = 0.35f;        // cao: rosnado antes de correr (aviso)
+    public const float DogSpeed = 118;          // cao: velocidade da corrida
 }
 
 public sealed partial class Game
@@ -467,6 +489,8 @@ public sealed partial class Game
             case BulletKind.Batarang: b.W = 8; b.H = 5; b.Life = 1.6f; b.Dmg = 2; b.Pierce = true; break;
             case BulletKind.Web: b.W = 6; b.H = 5; b.Life = 0.7f; b.Dmg = 1; break;
             case BulletKind.Arrow: b.W = 8; b.H = 2; b.Life = 2f; b.Dmg = 2; b.Grav = 260; b.ExplodeR = 28; break;
+            case BulletKind.EGrenade: b.W = 4; b.H = 4; b.Life = 1.4f; b.Dmg = 0; b.Grav = Tune.GrenadeGrav; b.ExplodeR = 24; break;
+            case BulletKind.EFlame: b.W = 6; b.H = 6; b.Life = 0.4f; b.Dmg = 1; b.Grav = -60; break;
         }
         S.Bullets.Add(b);
         return b;
@@ -664,6 +688,12 @@ public sealed partial class Game
                 case EnemyKind.Bomber:
                     UpdateCharger(e);
                     break;
+                case EnemyKind.Sniper:
+                    UpdateSniper(e);
+                    break;
+                case EnemyKind.Dog:
+                    UpdateDog(e);
+                    break;
                 default:
                     UpdateGrunt(e, gunY, era);
                     break;
@@ -675,15 +705,26 @@ public sealed partial class Game
     void UpdateGrunt(Enemy e, float gunY, Era era)
     {
         float dt = K.DT;
-        if (StunTick(e)) return;
+        if (StunTick(e)) { e.AimT = 0; return; }
         if (EnterTick(e)) return;
         if (LadderTick(e)) return;
-        float walk = e.Kind == EnemyKind.Brute ? Tune.WalkSpeed * 0.65f : Tune.WalkSpeed;
+        float walk = e.Kind switch
+        {
+            EnemyKind.Brute => Tune.WalkSpeed * 0.65f, EnemyKind.Shield => Tune.WalkSpeed * 0.7f,
+            EnemyKind.Flamer => Tune.WalkSpeed * 0.85f, _ => Tune.WalkSpeed,
+        };
         e.VY = MathF.Min(e.VY + K.GRAV * dt, 400);
         bool hidden = InHiddenRoom(e.X, e.Y - 8);            // numa sala escura nao enxerga o heroi
         if (hidden) e.Alerted = false;
 
-        if (!e.Alerted)
+        if (e.AimT > 0 && e.Kind is EnemyKind.Flamer or EnemyKind.Grenadier)
+        {
+            // ocupado: soltando o jato de fogo / braco erguido para jogar a granada
+            e.AimT -= dt; e.VX = 0;
+            if (e.Kind == EnemyKind.Flamer) EmitFlame(e);
+            else if (e.AimT <= 0) ThrowGrenade(e, e.AimX, e.AimY);
+        }
+        else if (!e.Alerted)
         {
             if (e.AlertT <= 0 && !hidden && OnScreen(e) && FindTarget(e.X, gunY, Tune.SeeRange, 32, out float tx, out _) &&
                 (MathF.Sign(tx - e.X) == e.Facing || MathF.Abs(tx - e.X) < Tune.SeeBehind))
@@ -711,6 +752,21 @@ public sealed partial class Game
                 }
             }
         }
+        else if (e.Kind == EnemyKind.Grenadier && FindTarget(e.X, gunY, Tune.GrenadeRange, 110, out float gx, out float gy))
+        {
+            // granadeiro: joga por cima de coberturas e em outras alturas (nao precisa de linha reta)
+            Face(e, gx);
+            e.VX = 0;
+            if (MathF.Abs(gx - e.X) > 120 && e.OnGround && !Ter.SolidAt(e.X + e.Facing * 8, e.Y - 4) && Ter.StandAt(e.X + e.Facing * 8, e.Y + 2))
+                e.VX = e.Facing * walk;
+            e.FireT -= dt;
+            if (e.FireT <= 0 && S.ShotCD <= 0 && OnScreen(e))
+            {
+                S.ShotCD = Tune.ShotGap;
+                e.AimT = Tune.GrenadeWindup; e.AimX = gx; e.AimY = gy + 10;
+                e.FireT = Tune.GrenadeRest + S.Rng.Range(0, 1f);
+            }
+        }
         else
         {
             // alvo noutra altura (nao da para acertar com tiro reto): vai pela escada mais proxima
@@ -722,19 +778,21 @@ public sealed partial class Game
             else if (other && !FindTarget(e.X, gunY, Tune.ShootRange, 48, out _, out _))
             {
                 e.VX = 0;      // alvo noutra altura e sem escada por perto: continua alerta, esperando
-                e.Facing = lx < e.X ? -1 : 1;
+                Face(e, lx);
             }
             else if (FindTarget(e.X, gunY, Tune.ShootRange, 48, out float tx, out float ty))
             {
-                e.Facing = tx < e.X ? -1 : 1;
+                Face(e, tx);
                 e.VX = 0;
-                // avanca para encurtar a distancia (o brutamontes chega mais perto)
-                float near = e.Kind == EnemyKind.Brute ? 60 : Tune.AdvanceRange;
+                // avanca para encurtar a distancia (brutamontes, escudeiro e lanca-chamas chegam mais perto)
+                float near = e.Kind switch { EnemyKind.Brute => 60, EnemyKind.Shield => 56, EnemyKind.Flamer => 40, _ => Tune.AdvanceRange };
                 if (MathF.Abs(tx - e.X) > near && e.OnGround && !Ter.SolidAt(e.X + e.Facing * 8, e.Y - 4) && Ter.StandAt(e.X + e.Facing * 8, e.Y + 2))
                     e.VX = e.Facing * walk * 1.3f;
                 e.FireT -= dt;
                 // so atira em linha reta: espera o alvo estar mais ou menos na altura da arma
-                if (e.FireT <= 0 && S.ShotCD <= 0 && MathF.Abs(ty - gunY) < 20 && OnScreen(e))
+                bool facing = MathF.Sign(tx - e.X) == e.Facing;          // o escudeiro de costas nao atira
+                bool inRange = e.Kind != EnemyKind.Flamer || MathF.Abs(tx - e.X) < Tune.FlameRange;
+                if (e.FireT <= 0 && S.ShotCD <= 0 && MathF.Abs(ty - gunY) < 20 && OnScreen(e) && facing && inRange)
                 {
                     float mx = e.X + e.Facing * 11;
                     S.ShotCD = Tune.ShotGap;
@@ -744,6 +802,15 @@ public sealed partial class Game
                             EnemyShoot(e, mx, gunY, tx, ty, Tune.BulletSpeed, era);
                             e.Burst++;
                             e.FireT = e.Burst % Tune.SoldierBurst == 0 ? Tune.SoldierRest + S.Rng.Range(0, 1f) : 0.2f;
+                            break;
+                        case EnemyKind.Shield:
+                            EnemyShoot(e, mx - e.Facing * 3, gunY - 2, tx, ty, Tune.BulletSpeed, era);
+                            e.FireT = Tune.ShieldRest + S.Rng.Range(0, 1f);
+                            break;
+                        case EnemyKind.Flamer:
+                            e.AimT = Tune.FlameTime;
+                            e.FireT = Tune.FlameRest + S.Rng.Range(0, 0.8f);
+                            sfx.Play("rocket", 0.6f, 0.8f);
                             break;
                         case EnemyKind.Rocketeer:
                             AddBullet(BulletKind.ERocket, mx, gunY - 1, e.Facing * 60, 0, false, e.Id);
@@ -886,6 +953,11 @@ public sealed partial class Game
             if (b.Kind == BulletKind.ERocket) b.VX = MathF.Sign(b.VX) * MathF.Min(MathF.Abs(b.VX) + 120 * dt, 170);
             if (b.Kind is BulletKind.Rocket or BulletKind.ERocket && fx.Next(2) == 0)
                 AddPart(PKind.Smoke, b.X - MathF.Sign(b.VX) * 4, b.Y, fx.Next(-10, 10), fx.Next(-10, 5), 0.45f, 2, Hex(0xbcbcbc));
+            if (b.Kind == BulletKind.EFlame)
+            {
+                b.VX *= 1 - 1.6f * dt;                              // o fogo perde forca e sobe
+                if (fx.Next(4) == 0) AddPart(PKind.Smoke, b.X, b.Y - 2, R(-6, 6), -R(10, 25), 0.4f, 2, A(Hex(0x3a3236), 0.55f));
+            }
             if (b.Kind == BulletKind.Dynamite && fx.Next(2) == 0)
                 AddPart(PKind.Spark, b.X, b.Y - 4, fx.Next(-30, 30), -fx.Next(20, 60), 0.2f, 1, Yellow);
             b.VY += b.Grav * dt;
@@ -907,8 +979,9 @@ public sealed partial class Game
                 b.X += mdx / steps; b.Y += mdy / steps;
                 int tx = (int)MathF.Floor(b.X / K.T), ty = (int)MathF.Floor(b.Y / K.T);
                 // tabuas da ponte (os 5px de cima do tile): o tiro bate e estraga a madeira
-                if (Ter.Type(tx, ty) == Terrain.BRIDGE && b.Y - ty * K.T < 5 && b.Kind is not (BulletKind.Grenade or BulletKind.Dynamite))
+                if (Ter.Type(tx, ty) == Terrain.BRIDGE && b.Y - ty * K.T < 5 && b.Kind is not (BulletKind.Grenade or BulletKind.Dynamite or BulletKind.EGrenade))
                 {
+                    if (b.Kind == BulletKind.EFlame) { BurnTile(tx, ty); b.Dead = true; break; }
                     if (b.ExplodeR > 0) { b.Dead = true; Explode(b.X, b.Y, b.ExplodeR, b.FromPlayer, b.OwnerId); break; }
                     DamageTile(tx, ty, b.FromPlayer ? BlockDmg(b, tx, ty) : 1);
                     if (b.Kind == BulletKind.Batarang && !b.Ghost) { b.X = ox; b.Y = oy; b.T = MathF.Max(b.T, BatarangOut); break; }
@@ -916,7 +989,8 @@ public sealed partial class Game
                 }
                 if (Ter.Solid(tx, ty))
                 {
-                    if (b.Kind is BulletKind.Grenade or BulletKind.Dynamite)
+                    if (b.Kind == BulletKind.EFlame) { BurnTile(tx, ty); b.Dead = true; break; }
+                    if (b.Kind is BulletKind.Grenade or BulletKind.Dynamite or BulletKind.EGrenade)
                     {
                         // quica
                         bool hx = Ter.SolidAt(b.X, oy), hy = Ter.SolidAt(ox, b.Y);
@@ -964,6 +1038,13 @@ public sealed partial class Game
                 var (x0, y0, x1, y1) = e.Box;
                 if (!Hit(bx0, by0, bx1, by1, x0, y0, x1, y1)) continue;
                 if (b.ExplodeR > 0) { b.Dead = true; Explode(b.X, b.Y, b.ExplodeR, true, b.OwnerId); return; }
+                if (ShieldBlocks(e, b.VX))
+                {
+                    // escudo: o tiro bate e para (o batarangue volta)
+                    ShieldSpark(e, b.Y);
+                    if (b.Kind == BulletKind.Batarang && !b.Ghost) { b.T = MathF.Max(b.T, BatarangOut); b.LastHit = e.Id; return; }
+                    b.Dead = true; return;
+                }
                 HitEnemy(e, b.Dmg, MathF.Sign(b.VX) * 1.5f);
                 if (b.Kind == BulletKind.Web && !e.Dead && e.Kind is not (EnemyKind.Flyer or EnemyKind.Turret))
                 {
@@ -1001,7 +1082,7 @@ public sealed partial class Game
                 if (P.InvulnT > 0 || P.DashT > 0) return;
                 b.Dead = true;
                 if (b.ExplodeR > 0) Explode(b.X, b.Y, b.ExplodeR, false, b.OwnerId);
-                KillPlayer(b.OwnerId, b.Kind == BulletKind.EBullet ? "BALEADO" : "EXPLODIDO");
+                KillPlayer(b.OwnerId, b.Kind switch { BulletKind.EBullet => "BALEADO", BulletKind.EFlame => "QUEIMADO", _ => "EXPLODIDO" });
                 return;
             }
             if (CarHit(b, bx0, by0, bx1, by1)) return;

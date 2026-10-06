@@ -10,13 +10,17 @@ public static class DesignExport
 {
     public static readonly string[] EraSlug = { "selva", "jurassico", "medieval", "cidade", "futuro" };
     public static readonly string[] HeroSlug = { "batman", "tomb_raider", "homem_aranha" };
-    public static readonly string[] GruntSlug = { "soldado", "bazuqueiro", "brutamontes", "faca", "homem_bomba" };
-
-    /// <summary>Indice da folha de cada tipo de inimigo a pe (soldado, bazuqueiro, brutamontes, faca, homem-bomba).</summary>
-    public static int GruntIndex(EnemyKind k) => k switch
+    public static readonly string[] GruntSlug =
+        { "soldado", "bazuqueiro", "brutamontes", "faca", "homem_bomba", "escudeiro", "granadeiro", "atirador", "lanca_chamas" };
+    /// <summary>Tipo de inimigo de cada folha de GruntSlug (mesma ordem).</summary>
+    public static readonly EnemyKind[] GruntKinds =
     {
-        EnemyKind.Rocketeer => 1, EnemyKind.Brute => 2, EnemyKind.Knife => 3, EnemyKind.Bomber => 4, _ => 0,
+        EnemyKind.Soldier, EnemyKind.Rocketeer, EnemyKind.Brute, EnemyKind.Knife, EnemyKind.Bomber,
+        EnemyKind.Shield, EnemyKind.Grenadier, EnemyKind.Sniper, EnemyKind.Flamer,
     };
+
+    /// <summary>Indice da folha de cada tipo de inimigo a pe (ver GruntSlug).</summary>
+    public static int GruntIndex(EnemyKind k) => Math.Max(0, Array.IndexOf(GruntKinds, k));
 
     /// <summary>Refem: civil de camisa branca e gravata, sem arma.</summary>
     public static readonly Look HostageLook = new()
@@ -34,6 +38,7 @@ public static class DesignExport
     public static string GruntPath(string root, int era, int kind) => Path.Combine(root, "sprites", "inimigos", $"{EraSlug[era]}_{GruntSlug[kind]}.png");
     public static string FlyerPath(string root, int era) => Path.Combine(root, "sprites", "inimigos", $"{EraSlug[era]}_voador.png");
     public static string TurretPath(string root, int era) => Path.Combine(root, "sprites", "inimigos", $"{EraSlug[era]}_torreta.png");
+    public static string DogPath(string root, int era) => Path.Combine(root, "sprites", "inimigos", $"{EraSlug[era]}_cao.png");
     public static string PropPath(string root, string name) => Path.Combine(root, "sprites", "objetos", name + ".png");
     public static string TilesPath(string root, int era) => Path.Combine(root, "tiles", EraSlug[era] + ".png");
     public static string TilePath(string root, string name) => Path.Combine(root, "tiles", name + ".png");
@@ -51,6 +56,24 @@ public static class DesignExport
         if (k == EnemyKind.Knife) { l.Wpn = 8; l.Gun = Hex(0xb0b8c0); l.Shirt = Mul(e.EShirt, 0.65f); }
         // homem-bomba: colete de dinamite vermelho e detonador na mao
         if (k == EnemyKind.Bomber) { l.Wpn = 9; l.Gun = Hex(0x505058); l.Accent = Red; l.Shirt = Hex(0xb8281c); }
+        // escudeiro: escudo alto da cor do aco do cenario, faixa na cor de destaque
+        if (k == EnemyKind.Shield) { l.Wpn = 11; l.Gun = Col.Lerp(e.Steel, Hex(0x34404e), 0.4f); l.Shirt = Mul(e.EShirt, 0.85f); }
+        // granadeiro: granada verde na mao e cinto de granadas
+        if (k == EnemyKind.Grenadier)
+        {
+            l.Wpn = 12; l.Gun = Hex(0x4e6e2c); l.Shirt = Col.Lerp(e.EShirt, Hex(0x6a5a2a), 0.4f);
+            l.Belt = Hex(0x4e6e2c); l.CustomBelt = true;
+        }
+        // atirador de elite: roupa escura (camuflagem) e fuzil comprido com luneta
+        if (k == EnemyKind.Sniper) { l.Wpn = 13; l.Shirt = Mul(e.EShirt, 0.62f); l.Pants = Mul(e.EPants, 0.7f); l.Gun = Hex(0x2a2a2e); }
+        // lanca-chamas: roupa anti-chamas e tanque vermelho nas costas
+        if (k == EnemyKind.Flamer)
+        {
+            l.Wpn = 14; l.Gun = Hex(0x5a5a62); l.Tank = true; l.Accent = Hex(0xd04020);
+            l.Shirt = Col.Lerp(e.EShirt, Hex(0xb89a4a), 0.55f); l.Pants = Col.Lerp(e.EPants, Hex(0x8a7038), 0.4f);
+        }
+        // cao: so as cores (para os pedacos quando explode)
+        if (k == EnemyKind.Dog) { var (b, d, lt, _, _) = DogColors(e.Style); l.Skin = b; l.Shirt = d; l.Pants = lt; }
         return l;
     }
 
@@ -75,9 +98,10 @@ public static class DesignExport
             var era = Eras.All[e];
             for (int k = 0; k < GruntSlug.Length; k++)
             {
-                var look = EnemyLook(era, k switch { 3 => EnemyKind.Knife, 4 => EnemyKind.Bomber, _ => (EnemyKind)k });
+                var look = EnemyLook(era, GruntKinds[k]);
                 Need(GruntPath(root, e, k), CW * Cols, CH * Rows, () => CharSheet(look));
             }
+            Need(DogPath(root, e), DogW * 6, DogH, () => { for (int f = 0; f < 6; f++) Dog(f * DogW, 0, era.Style, f); });
             Need(FlyerPath(root, e), 32 * 4, 24, () => { for (int f = 0; f < 4; f++) Flyer(16 + f * 32, 12, 1, era, f / 14f + 0.001f, null); });
             Need(TurretPath(root, e), 32 * 4, 16, () =>
             {
@@ -94,6 +118,7 @@ public static class DesignExport
         Need(TilePath(root, "escada"), 2 * K.T, K.T, LadderTiles);
         Need(TilePath(root, "parede"), Eras.All.Length * K.T, 2 * K.T, HouseWall);
         Need(TilePath(root, "concreto"), K.T, 2 * K.T, ConcreteTiles);
+        Need(TilePath(root, "telhado"), 4 * K.T, Eras.All.Length * K.T, RoofTiles);
         Need(PropPath(root, "refem"), CW * Cols, CH * Rows, () => CharSheet(HostageLook));
         Need(PropPath(root, "paraquedas"), 24, 18, ParachuteArt);
         Need(PropPath(root, "carro"), 3 * 32, 16, CarArt);
@@ -625,6 +650,219 @@ public static class DesignExport
                 }
             }
         }
+    }
+
+    /// <summary>telhado.png: uma linha por cenario (selva, jurassico, medieval, cidade, futuro). Colunas: ponta
+    /// esquerda, meio, ponta direita e enfeite (antena, chamine...), que e desenhado no bloco de cima do telhado.</summary>
+    static void RoofTiles()
+    {
+        const int T = K.T;
+        for (int ei = 0; ei < Eras.All.Length; ei++)
+        {
+            var st = Eras.All[ei].Style;
+            for (int part = 0; part < 3; part++) RoofTile(part * T, ei * T, st, part);
+            RoofDecor(3 * T, ei * T, st);
+        }
+    }
+
+    static void RoofTile(int x, int y, BgStyle st, int part)
+    {
+        const int T = K.T;
+        var (b, d, l) = st switch
+        {
+            BgStyle.Jungle => (Hex(0xb8963a), Hex(0x7a5e22), Hex(0xe0c070)),       // palha
+            BgStyle.Dino => (Hex(0x5a8a2a), Hex(0x34561a), Hex(0x8ab84a)),         // folhas
+            BgStyle.Medieval => (Hex(0x5a6478), Hex(0x343a4a), Hex(0x8a94a8)),     // ardosia
+            BgStyle.City => (Hex(0xb04a2a), Hex(0x6e2a16), Hex(0xe07a4a)),         // telha de barro
+            _ => (Hex(0x24305a), Hex(0x141a34), Hex(0x3ae0ff)),                    // painel solar
+        };
+        void In(int px, int py, int w, Color c)
+        {
+            int a = Math.Max(px, x), z = Math.Min(px + w, x + T);
+            if (z > a) Rect(a, py, z - a, 1, c);
+        }
+        Rect(x, y, T, T, b);
+        if (st is BgStyle.City or BgStyle.Medieval)
+        {
+            // telhas em escamas, fileiras desencontradas: brilho em cima, arco escuro embaixo
+            for (int band = 0; band < 3; band++)
+            {
+                int sy = y + 1 + band * 5, off = band % 2 == 0 ? 0 : 2;
+                for (int sx = x - 4 + off; sx < x + T; sx += 4)
+                {
+                    In(sx + 1, sy, 2, l);
+                    In(sx, sy + 3, 1, d); In(sx + 3, sy + 3, 1, d);
+                    In(sx + 1, sy + 4, 2, d);
+                    In(sx + 1, sy + 2, 1, Mul(b, 1.12f));
+                }
+            }
+        }
+        else if (st == BgStyle.Future)
+        {
+            // painel solar: celulas escuras com grade em ciano fraco e um reflexo
+            var grid = Col.Lerp(b, l, 0.35f);
+            Rect(x, y + 5, T, 1, grid); Rect(x, y + 10, T, 1, grid);
+            Rect(x + 5, y + 1, 1, T - 2, grid); Rect(x + 10, y + 1, 1, T - 2, grid);
+            Px(x + 2, y + 2, l); Px(x + 3, y + 2, Col.Lerp(b, l, 0.6f)); Px(x + 12, y + 7, Col.Lerp(b, l, 0.6f));
+        }
+        else
+        {
+            // palha (selva) ou folhas (jurassico): fios verticais irregulares com amarras
+            for (int i = 0; i < T; i++)
+            {
+                uint h = Hash.H(i * 7 + (int)st, 31);
+                var c = (h & 3) == 0 ? l : (h & 3) == 1 ? d : Mul(b, 1.06f);
+                int len = 4 + (int)(h >> 4) % 8;
+                Rect(x + i, y + 2 + (int)(h >> 8) % 4, 1, len, c);
+            }
+            Rect(x, y + 6, T, 1, d); Rect(x, y + 11, T, 1, d);
+            for (int i = 0; i < T; i += 2) Px(x + i, y + T - 1, Mul(d, 0.8f));
+            if (st == BgStyle.Dino)
+                for (int i = 1; i < T; i += 5) { Px(x + i, y + 3, l); Px(x + i + 1, y + 4, l); Px(x + i + 2, y + 5, d); }
+        }
+        // cumeeira clara em cima e sombra embaixo
+        Rect(x, y, T, 1, l); Rect(x, y + T - 1, T, 1, Mul(d, 0.85f));
+        // pontas: tabua de beiral
+        if (part == 0) { Rect(x, y, 2, T, d); Rect(x + 2, y + 1, 1, T - 1, Mul(b, 0.8f)); Px(x, y, Mul(d, 0.7f)); }
+        if (part == 2) { Rect(x + T - 2, y, 2, T, d); Rect(x + T - 3, y + 1, 1, T - 1, Mul(b, 0.8f)); Px(x + T - 1, y, Mul(d, 0.7f)); }
+    }
+
+    /// <summary>Enfeite em cima do telhado: antena de TV (cidade), parabolica (futuro), chamine (selva e medieval),
+    /// ossos (jurassico). Apoiado na base da celula.</summary>
+    static void RoofDecor(int x, int y, BgStyle st)
+    {
+        switch (st)
+        {
+            case BgStyle.City:
+            {
+                var g = Hex(0x8a8a92); var gd = Hex(0x5a5a62);
+                Rect(x + 7, y + 2, 1, 14, g); Rect(x + 8, y + 2, 1, 14, gd);
+                Rect(x + 2, y + 3, 11, 1, g); Rect(x + 3, y + 6, 9, 1, g); Rect(x + 4, y + 9, 7, 1, g);
+                Px(x + 2, y + 4, gd); Px(x + 12, y + 4, gd);
+                Rect(x + 6, y + 14, 4, 2, gd);
+                break;
+            }
+            case BgStyle.Future:
+            {
+                var m = Hex(0xc8d0e0); var md = Hex(0x8a92a8);
+                Rect(x + 7, y + 10, 2, 6, md);
+                Rect(x + 5, y + 4, 6, 1, m); Rect(x + 4, y + 5, 8, 3, m); Rect(x + 5, y + 8, 6, 1, md);
+                Rect(x + 7, y + 2, 1, 3, md); Px(x + 7, y + 1, Cyan);
+                break;
+            }
+            case BgStyle.Dino:
+            {
+                var bone = Hex(0xeee6cc); var bd = Hex(0xb8b09a);
+                Rect(x + 4, y + 12, 8, 2, bone); Rect(x + 4, y + 13, 8, 1, bd);
+                Rect(x + 2, y + 11, 2, 2, bone); Rect(x + 2, y + 14, 2, 2, bone);
+                Rect(x + 12, y + 11, 2, 2, bone); Rect(x + 12, y + 14, 2, 2, bone);
+                break;
+            }
+            default:
+            {
+                var br = st == BgStyle.Medieval ? Hex(0x7a7a8a) : Hex(0x8e6a5a);
+                var bd = Mul(br, 0.7f);
+                Rect(x + 5, y + 6, 6, 10, br); Rect(x + 4, y + 4, 8, 2, bd); Rect(x + 4, y + 4, 8, 1, Mul(br, 1.2f));
+                Rect(x + 5, y + 9, 6, 1, bd); Rect(x + 5, y + 12, 6, 1, bd);
+                Px(x + 7, y + 7, bd); Px(x + 9, y + 10, bd); Px(x + 6, y + 13, bd);
+                Rect(x + 10, y + 6, 1, 10, bd);
+                break;
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ cao de ataque
+
+    public const int DogW = 24, DogH = 16;      // celula do cao: pes no pixel (12, 15)
+
+    /// <summary>Cores do cao de cada cenario: corpo, escuro, claro (barriga/focinho), olho e coleira.</summary>
+    public static (Color body, Color dark, Color light, Color eye, Color collar) DogColors(BgStyle st) => st switch
+    {
+        BgStyle.Jungle => (Hex(0xa8743a), Hex(0x3a2a1e), Hex(0xd8b07a), Hex(0x1a1010), Hex(0xd8b840)),     // pastor alemao
+        BgStyle.Dino => (Hex(0x6a8a3a), Hex(0x3e5a22), Hex(0xc8c890), Hex(0xffd040), Hex(0xa83a2a)),       // raptor
+        BgStyle.Medieval => (Hex(0x8a8a96), Hex(0x50505e), Hex(0xc8c8d0), Hex(0xffd060), Hex(0x50505e)),   // lobo
+        BgStyle.City => (Hex(0x2e2622), Hex(0x16120f), Hex(0xa8683a), Hex(0x1a1010), Hex(0xc02020)),       // rottweiler
+        _ => (Hex(0xa4acc4), Hex(0x4a5472), Hex(0xd8e0f0), Hex(0x3ae0ff), Hex(0xff3a5a)),                  // cao-robo
+    };
+
+    // pe da frente (perto, longe) e de tras (perto, longe): deslocamento x e altura, por quadro
+    static readonly sbyte[,] DogLegs =
+    {
+        { 0, 0, 0, 0, 0, 0, 0, 0 },
+        { 3, 0, -1, 1, -3, 0, 1, 1 },
+        { 1, 2, 1, 0, -1, 0, -1, 2 },
+        { -1, 1, 3, 0, 1, 1, -3, 0 },
+        { 1, 0, 1, 2, -1, 2, -1, 0 },
+        { 4, 3, 3, 3, -4, 2, -3, 2 },
+    };
+
+    /// <summary>Um quadro do cao olhando para a direita, na celula (ox, oy). Quadros: 0 parado, 1-4 correndo, 5 salto.
+    /// No cenario jurassico e um raptor; no futuro, um cao-robo.</summary>
+    static void Dog(int ox, int oy, BgStyle st, int f)
+    {
+        var (b, d, l, eye, col) = DogColors(st);
+        void R(int x, int y, int w, int h, Color c) => Rect(ox + x, oy + y, w, h, c);
+        int bob = f is 2 or 4 ? -1 : 0;
+        int hy = f == 5 ? -1 : 0;                     // cabeca erguida no salto
+        void Leg(int hx, int hipY, int dx, int lift, Color c)
+        {
+            int fx = hx + dx, bottom = 15 - lift;
+            for (int y = hipY; y < bottom; y++)
+            {
+                float k = (y - hipY) / (float)Math.Max(1, bottom - hipY);
+                R((int)MathF.Round(hx + dx * k), y, 2, 1, c);
+            }
+            R(fx, bottom, 3, 1, Mul(c, 0.75f));
+        }
+        if (st == BgStyle.Dino)
+        {
+            // raptor: duas pernas fortes, cauda comprida, bracinhos com garra
+            Leg(9, 10 + bob, DogLegs[f, 6], DogLegs[f, 7], Mul(d, 0.9f));
+            R(0, 6 + bob, 3, 1, d); R(2, 5 + bob, 5, 2, b);
+            R(6, 4 + bob, 9, 5, b);
+            for (int i = 0; i < 3; i++) { R(8 + i * 2, 4 + bob, 1, 2, d); }
+            R(8, 8 + bob, 6, 1, l);
+            R(13, 2 + bob + hy, 3, 5, b);
+            R(14, 1 + bob + hy, 7, 2, b); R(15, 3 + bob + hy, 6, 1, l);
+            R(16, 3 + bob + hy, 1, 1, White); R(18, 3 + bob + hy, 1, 1, White); R(20, 3 + bob + hy, 1, 1, White);
+            R(16, 1 + bob + hy, 1, 1, eye); R(20, 1 + bob + hy, 1, 1, d);
+            R(15, 6 + bob, 2, 1, d); R(17, 7 + bob, 1, 1, l);
+            R(9, 8 + bob, 3, 3, Mul(b, 0.92f));
+            Leg(10, 10 + bob, DogLegs[f, 4], DogLegs[f, 5], b);
+            return;
+        }
+        // pernas de longe (mais escuras) atras do corpo
+        Leg(14, 10 + bob, DogLegs[f, 2], DogLegs[f, 3], Mul(d, 0.9f));
+        Leg(7, 10 + bob, DogLegs[f, 6], DogLegs[f, 7], Mul(d, 0.9f));
+        // cauda (abana) — o lobo tem a cauda mais grossa
+        int wag = f % 2;
+        R(2, 4 + bob + wag, 1, 2, b); R(3, 5 + bob, 2, 1, b); R(4, 6 + bob, 2, 2, b);
+        if (st == BgStyle.Medieval) { R(1, 5 + bob + wag, 3, 2, b); R(1, 6 + bob + wag, 1, 1, l); }
+        // corpo
+        R(5, 6 + bob, 11, 5, b);
+        R(6, 6 + bob, 8, 2, d);
+        R(7, 10 + bob, 7, 1, l);
+        R(14, 4 + bob, 4, 6, b);
+        R(16, 7 + bob, 2, 3, l);
+        // cabeca
+        int y0 = 2 + bob + hy;
+        R(16, y0, 5, 4, b);
+        R(20, y0 + 2, 3, 2, l);
+        R(22, y0 + 2, 1, 1, Ink);
+        R(18, y0 + 1, 1, 1, eye);
+        R(16, y0 - 2, 2, 2, d); R(17, y0 - 3, 1, 1, d);
+        if (f is >= 1 and <= 4) R(20, y0 + 4, 1, 1, Hex(0xd84a5a));        // lingua de fora correndo
+        if (f == 5) { R(20, y0 + 4, 3, 1, d); R(21, y0 + 4, 1, 1, White); } // boca aberta no salto
+        if (st != BgStyle.Medieval) R(15, 6 + bob, 3, 1, col);             // coleira (o lobo nao tem)
+        if (st == BgStyle.Future)
+        {
+            // cao-robo: juntas e antena
+            R(17, y0 - 3, 1, 2, d); R(17, y0 - 4, 1, 1, col);
+            R(6, 9 + bob, 1, 1, l); R(14, 9 + bob, 1, 1, l); R(10, 6 + bob, 2, 1, l);
+        }
+        // pernas de perto
+        Leg(15, 10 + bob, DogLegs[f, 0], DogLegs[f, 1], b);
+        Leg(6, 10 + bob, DogLegs[f, 4], DogLegs[f, 5], b);
     }
 
     /// <summary>paraquedas.png: copula com cordas; a base (ponto onde as cordas se juntam) no fundo, ao centro.</summary>
