@@ -19,10 +19,12 @@ cd JackassRun && dotnet run
 | Atirar | J / Z | X / RT |
 | Especial | K / X | B |
 | Time Out (voltar no tempo) | L / C | Y |
+| Subir / descer escada | W ↑ / S ↓ | D-pad |
+| Descer através da ponte | S / ↓ | D-pad ↓ |
 | Pausa | Esc / P | Start |
 | Tela cheia / Ligar som (começa mudo) | F / M | — |
 
-Segure contra uma parede no ar para escalar.
+Segure contra uma parede no ar para escalar. Pontes de madeira: atire nas tábuas para derrubar os inimigos no abismo — e não pare em cima, a tábua pisada cai 1 segundo depois (`Tune.BridgeFall`). Pontes de concreto são firmes: balas não as estragam, só explosões.
 
 ## Mecânicas
 
@@ -56,6 +58,20 @@ Segure contra uma parede no ar para escalar.
 Velocidade de corrida, força do pulo, pulos no ar, intervalo/velocidade/dano/alcance do tiro, atordoamento,
 especiais iniciais, raio e quantidade do especial... Cada variável tem um comentário explicando.
 Edite os números de cada herói em `HeroConfig.cs` e rode o jogo de novo (`dotnet run`).
+
+## Geração dos cenários (`Game.Gen.cs`)
+
+Inspirada no level design do Broforce. Cada era é uma **fase** de 5 trechos com arco de tensão:
+**Chegada** (calma) → **Arredores** (ponte ou casa) → **Subsolo** (caverna ou túnel: dois caminhos) →
+**Posto avançado** (bunker, acampamento com barris ou ponte) → **Fortaleza** (clímax, com prisioneiro no fim).
+
+- Cada trecho tem uma **peça central** do seu ato e **recheio** sorteado por pesos, sem repetir o anterior.
+- **Orçamento de inimigos** por ato (sobe ao longo da fase e da corrida): sem inimigos espalhados à toa.
+- **Respiros** (chão calmo com prémios) depois de trechos intensos e **prisioneiros como recompensa**.
+- **Justiça**: buracos têm corrida antes e aterrissagem sem inimigos; barris aparecem antes dos inimigos.
+- Ajuste em `Fillers` (pesos), `Anchors` (peças centrais), `Budget` (inimigos por ato) e `Cost` (preço de cada inimigo).
+- Do **Metal Slug** (`Game.Slug.cs`): **emboscadas** — tropas que entram correndo pela direita ou caem de
+  paraquedas quando o herói passa por um ponto.
 
 ## Arte editável (pasta `design/`)
 

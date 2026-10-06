@@ -6,23 +6,23 @@ namespace JackassRun;
 /// <summary>Ajuste de dificuldade dos inimigos: mexa aqui para deixa-los mais calmos ou mais bravos.</summary>
 static class Tune
 {
-    public const float SeeRange = 95;           // distancia em que o soldado percebe voce (so olhando para voce)
+    public const float SeeRange = 170;           // distancia em que o soldado percebe voce (so olhando para voce)
     public const float SeeBehind = 16;          // percebe quem esta colado nas costas
-    public const float AlertTime = 1.1f;        // tempo do "!" antes de reagir
-    public const float FirstShotDelay = 0.7f;   // espera extra depois do "!"
+    public const float AlertTime = 0.75f;        // tempo do "!" antes de reagir
+    public const float FirstShotDelay = 0.45f;   // espera extra depois do "!"
     public const float ShootRange = 160;        // distancia maxima para atirar
     public const int SoldierBurst = 1;          // tiros por rajada
-    public const float SoldierRest = 2.6f;      // pausa entre rajadas (+ ate 1s aleatorio)
-    public const float BulletSpeed = 85;        // velocidade das balas inimigas
-    public const float RocketRest = 4.5f;       // pausa do bazuqueiro (+ ate 1s)
-    public const float BruteRest = 3.2f;        // pausa do brutamontes (+ ate 0,6s)
+    public const float SoldierRest = 1.9f;      // pausa entre rajadas (+ ate 1s aleatorio)
+    public const float BulletSpeed = 100;        // velocidade das balas inimigas
+    public const float RocketRest = 3.4f;       // pausa do bazuqueiro (+ ate 1s)
+    public const float BruteRest = 2.5f;        // pausa do brutamontes (+ ate 0,6s)
     public const int TurretBurst = 1;
-    public const float TurretRest = 3.0f;
+    public const float TurretRest = 2.3f;
     public const float TurretRange = 150;
-    public const float BombRest = 2.6f;         // intervalo das bombas dos voadores
+    public const float BombRest = 2.0f;         // intervalo das bombas dos voadores
     public const float ScrollMax = 70;          // velocidade maxima da tela (heroi mais lento corre a 80)
     public const float UndergroundScroll = 0.55f; // fator da velocidade da tela no subsolo
-    public const float ShotGap = 0.7f;          // intervalo minimo entre tiros de QUALQUER inimigo (um atira por vez)
+    public const float ShotGap = 0.5f;          // intervalo minimo entre tiros de QUALQUER inimigo (um atira por vez)
 
     // Chance de um bloco cair quando o de baixo e destruido, se ele estiver preso a outro bloco pelos lados.
     // (Sem nada dos lados ele sempre cai.) 0 = nunca cai, 1 = sempre cai.
@@ -30,6 +30,13 @@ static class Tune
     public const float FallBrick = 0.4f;
     public const float FallCrate = 0.75f;
     public const float ScreenMargin = 12;       // so atiram quando estao visiveis na tela
+    public const float CorpseMin = 3f;        // corpo de inimigo some entre CorpseMin e CorpseMax segundos
+    public const float CorpseMax = 5f;
+    public const float LadderChance = 0.4f;     // chance de um inimigo patrulhando usar a escada por onde passa
+    public const float WalkSpeed = 40;          // patrulha do soldado (brutamontes: 2/3 disso)
+    public const float AdvanceRange = 100;      // alertado e mais longe que isso: avanca na direcao do heroi
+    public const float BridgeFall = 1.5f;       // segundos ate a tabua de madeira pisada pelo heroi cair
+    public const float WeaponSpin = 2000;        // graus por segundo do giro do sprite da arma lancada (armour/)
 }
 
 public sealed partial class Game
@@ -40,6 +47,8 @@ public sealed partial class Game
         EnsureChunks();
         UpdateCamera();
         UpdatePlayer(i);
+        UpdateBridgeFuses();
+        UpdateAmbushes();
         UpdateGhosts();
         UpdateEnemies();
         UpdateProps();
@@ -115,7 +124,9 @@ public sealed partial class Game
     // ------------------------------------------------------------------ fisica generica
 
     /// <summary>Move uma caixa (x = centro, y = pes) contra o terreno, eixo por eixo.</summary>
-    bool MoveBody(ref float x, ref float y, ref float vx, ref float vy, float hw, float h, out bool hitWall)
+    /// <summary>Move um corpo contra o terreno. Pontes e topos de escada seguram so quem vem de cima
+    /// (drop = true atravessa, ex.: segurando para baixo).</summary>
+    bool MoveBody(ref float x, ref float y, ref float vx, ref float vy, float hw, float h, out bool hitWall, bool drop = false)
     {
         hitWall = false;
         bool onGround = false;
@@ -154,10 +165,34 @@ public sealed partial class Game
                     }
                     vy = 0; sy = 0;
                 }
+                else if (sy > 0 && !drop && CrossesPlatform(x, y - sy, y, hw, out float top))
+                {
+                    y = top; vy = 0; sy = 0; onGround = true;
+                }
             }
         }
-        if (!onGround && vy >= 0 && Overlaps(x, y + 1, hw, h)) onGround = true;
+        if (!onGround && vy >= 0 && (Overlaps(x, y + 1, hw, h) || !drop && OnPlatform(x, y, hw))) onGround = true;
         return onGround;
+    }
+
+    /// <summary>Os pes passaram pela linha de cima de uma ponte/topo de escada neste passo?</summary>
+    bool CrossesPlatform(float x, float y0, float y1, float hw, out float top)
+    {
+        int row = (int)MathF.Floor(y1 / K.T);
+        top = row * K.T;
+        if (y0 > top + 0.01f || y1 <= top) return false;
+        int x0 = (int)MathF.Floor((x - hw) / K.T), x1 = (int)MathF.Floor((x + hw - 0.01f) / K.T);
+        for (int tx = x0; tx <= x1; tx++) if (Ter.Platform(tx, row)) return true;
+        return false;
+    }
+
+    bool OnPlatform(float x, float y, float hw)
+    {
+        int row = (int)MathF.Round(y / K.T);
+        if (MathF.Abs(y - row * K.T) > 0.05f) return false;
+        int x0 = (int)MathF.Floor((x - hw) / K.T), x1 = (int)MathF.Floor((x + hw - 0.01f) / K.T);
+        for (int tx = x0; tx <= x1; tx++) if (Ter.Platform(tx, row)) return true;
+        return false;
     }
 
     bool Overlaps(float x, float y, float hw, float h)
@@ -192,7 +227,41 @@ public sealed partial class Game
         int dir = (i.Right ? 1 : 0) - (i.Left ? 1 : 0);
         bool fired = false, special = false;
 
-        if (p.DashT > 0)
+        // escadas: segurar cima/baixo sobre uma escada agarra nela (W/seta para cima tambem e pular,
+        // por isso na escada so o espaco sem segurar para cima faz saltar para fora)
+        int lcol = (int)MathF.Floor(p.X / K.T);
+        bool ladderBody = Ter.LadderAt(p.X, p.Y - 2) || Ter.LadderAt(p.X, p.Y - PH + 2);
+        bool ladderBelow = Ter.LadderAt(p.X, p.Y + 2);
+        if (!p.OnLadder && p.DashT <= 0 && (i.Up && ladderBody || i.Down && ladderBelow && p.OnGround))
+        {
+            p.OnLadder = true; p.VX = 0; p.VY = 0;
+        }
+        if (p.OnLadder && (!ladderBody && !ladderBelow || i.Jump && !i.Up || dir != 0 && !i.Up && !i.Down))
+        {
+            p.OnLadder = false;
+            if (i.Jump && !i.Up) { p.VY = -170; p.VX = dir * ch.Speed; sfx.Play("jump", 0.8f); }
+        }
+
+        bool drop = false;
+        if (p.OnLadder)
+        {
+            // centraliza na escada e sobe/desce
+            p.X = Approach(p.X, lcol * K.T + K.HT, 90 * dt);
+            p.VX = 0;
+            float cs = HeroConfig.Of(p.Char).VelocidadeEscalada;
+            p.VY = ((i.Down ? 1 : 0) - (i.Up ? 1 : 0)) * cs;
+            // no topo: nao sobe alem do degrau de cima (fica de pe em cima da escada)
+            if (p.VY < 0 && !Ter.LadderAt(p.X, p.Y - 2) && Ter.LadderAt(p.X, p.Y + 2))
+            {
+                float top = MathF.Floor((p.Y + 2) / K.T) * K.T;
+                if (!Overlaps(p.X, top, 3.5f, PH)) p.Y = MathF.Min(p.Y, top);
+                p.VY = 0; p.OnLadder = false;
+            }
+            drop = true;
+            p.Climbing = true;
+            if (dir != 0) p.Facing = dir;
+        }
+        else if (p.DashT > 0)
         {
             p.DashT -= dt;
             p.VY = 0;
@@ -264,9 +333,14 @@ public sealed partial class Game
         if (p.DashT <= 0) TryKick(p, dir);
         float preVY = p.VY;
         bool wasGround = p.OnGround;
-        p.OnGround = MoveBody(ref p.X, ref p.Y, ref p.VX, ref p.VY, 3.5f, PH, out _);
-        if (wasGround && !p.OnGround && p.VY >= 0) p.Coyote = 0.08f;
+        // segurar para baixo em cima de uma ponte: desce atraves dela
+        if (!p.OnLadder && i.Down && !i.Up && p.OnGround && OnPlatform(p.X, p.Y, 3.5f) && !Overlaps(p.X, p.Y + 1, 3.5f, PH)) drop = true;
+        p.OnGround = MoveBody(ref p.X, ref p.Y, ref p.VX, ref p.VY, 3.5f, PH, out _, drop);
+        if (p.OnLadder && p.OnGround && i.Down && !Ter.LadderAt(p.X, p.Y + 2)) p.OnLadder = false;   // chegou ao chao
+        if (p.OnLadder) p.OnGround = false;
+        if (wasGround && !p.OnGround && p.VY >= 0 && !p.OnLadder) p.Coyote = 0.08f;
         if (p.OnGround) p.AirJumps = HeroConfig.Of(p.Char).PulosNoAr;
+        if (p.OnGround) StepOnBridge(p);
         TryStomp(p, preVY);
         if (!wasGround && p.OnGround)
         {
@@ -408,7 +482,7 @@ public sealed partial class Game
         Bullet Shot(BulletKind k, float bx, float by)
         {
             var b = AddBullet(k, bx, by, f * st.VelocidadeTiro, Spread(), true, K.PLAYER_ID, ghost);
-            b.Dmg = st.DanoTiro; b.Life = st.AlcanceTiro; b.Char = ch;
+            b.Dmg = st.DanoTiro; b.Life = st.AlcanceTiro; b.Char = ch; b.Spin = f;
             return b;
         }
         switch (ch)
@@ -564,7 +638,9 @@ public sealed partial class Game
     {
         float dt = K.DT;
         if (StunTick(e)) return;
-        float walk = e.Kind == EnemyKind.Brute ? 12 : 20;
+        if (EnterTick(e)) return;
+        if (LadderTick(e)) return;
+        float walk = e.Kind == EnemyKind.Brute ? Tune.WalkSpeed * 0.65f : Tune.WalkSpeed;
         e.VY = MathF.Min(e.VY + K.GRAV * dt, 400);
         bool hidden = InHiddenRoom(e.X, e.Y - 8);            // numa sala escura nao enxerga o heroi
         if (hidden) e.Alerted = false;
@@ -591,19 +667,33 @@ public sealed partial class Game
                 {
                     float ax = e.X + e.Facing * (e.HalfW + 2);
                     bool wall = Ter.SolidAt(ax, e.Y - 4);
-                    bool ledge = !Ter.SolidAt(ax, e.Y + 2);
+                    bool ledge = !Ter.StandAt(ax, e.Y + 2);
                     if (wall || ledge) { e.Facing = -e.Facing; e.VX = 0; }
+                    MaybeLadder(e);
                 }
             }
         }
         else
         {
-            if (FindTarget(e.X, gunY, Tune.ShootRange, 48, out float tx, out float ty))
+            // alvo noutra altura (nao da para acertar com tiro reto): vai pela escada mais proxima
+            bool other = FindTarget(e.X, gunY, Tune.ShootRange, 110, out float lx, out float ly) && MathF.Abs(ly - gunY) >= 20;
+            if (other && SeekLadder(e, ly + 7, walk * 1.6f))
+            {
+                e.FireT = MathF.Max(e.FireT, 0.4f);
+            }
+            else if (other && !FindTarget(e.X, gunY, Tune.ShootRange, 48, out _, out _))
+            {
+                e.VX = 0;      // alvo noutra altura e sem escada por perto: continua alerta, esperando
+                e.Facing = lx < e.X ? -1 : 1;
+            }
+            else if (FindTarget(e.X, gunY, Tune.ShootRange, 48, out float tx, out float ty))
             {
                 e.Facing = tx < e.X ? -1 : 1;
                 e.VX = 0;
-                if (e.Kind == EnemyKind.Brute && MathF.Abs(tx - e.X) > 60 && e.OnGround && !Ter.SolidAt(e.X + e.Facing * 8, e.Y - 4) && Ter.SolidAt(e.X + e.Facing * 8, e.Y + 2))
-                    e.VX = e.Facing * walk;
+                // avanca para encurtar a distancia (o brutamontes chega mais perto)
+                float near = e.Kind == EnemyKind.Brute ? 60 : Tune.AdvanceRange;
+                if (MathF.Abs(tx - e.X) > near && e.OnGround && !Ter.SolidAt(e.X + e.Facing * 8, e.Y - 4) && Ter.StandAt(e.X + e.Facing * 8, e.Y + 2))
+                    e.VX = e.Facing * walk * 1.3f;
                 e.FireT -= dt;
                 // so atira em linha reta: espera o alvo estar mais ou menos na altura da arma
                 if (e.FireT <= 0 && S.ShotCD <= 0 && MathF.Abs(ty - gunY) < 20 && OnScreen(e))
@@ -774,6 +864,14 @@ public sealed partial class Game
                 float ox = b.X, oy = b.Y;
                 b.X += mdx / steps; b.Y += mdy / steps;
                 int tx = (int)MathF.Floor(b.X / K.T), ty = (int)MathF.Floor(b.Y / K.T);
+                // tabuas da ponte (os 5px de cima do tile): o tiro bate e estraga a madeira
+                if (Ter.Type(tx, ty) == Terrain.BRIDGE && b.Y - ty * K.T < 5 && b.Kind is not (BulletKind.Grenade or BulletKind.Dynamite))
+                {
+                    if (b.ExplodeR > 0) { b.Dead = true; Explode(b.X, b.Y, b.ExplodeR, b.FromPlayer, b.OwnerId); break; }
+                    DamageTile(tx, ty, b.FromPlayer ? BlockDmg(b, tx, ty) : 1);
+                    if (b.Kind == BulletKind.Batarang && !b.Ghost) { b.X = ox; b.Y = oy; b.T = MathF.Max(b.T, BatarangOut); break; }
+                    if (b.Kind != BulletKind.Laser) { b.Dead = true; break; }
+                }
                 if (Ter.Solid(tx, ty))
                 {
                     if (b.Kind is BulletKind.Grenade or BulletKind.Dynamite)
@@ -911,6 +1009,8 @@ public sealed partial class Game
         S.Props.RemoveAll(p => p.Done || p.X < left);
         S.Explosions.RemoveAll(e => e.T > e.Dur);
         S.Falling.RemoveAll(f => f.Dead);
+        S.Ambushes.RemoveAll(a => a.Fired || a.Col * K.T < left);
+        S.BridgeFuses.RemoveAll(f => f.X * K.T < left);
     }
 
     // ------------------------------------------------------------------ particulas / texto

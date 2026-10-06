@@ -36,6 +36,7 @@ public static class DesignExport
     public static string TurretPath(string root, int era) => Path.Combine(root, "sprites", "inimigos", $"{EraSlug[era]}_torreta.png");
     public static string PropPath(string root, string name) => Path.Combine(root, "sprites", "objetos", name + ".png");
     public static string TilesPath(string root, int era) => Path.Combine(root, "tiles", EraSlug[era] + ".png");
+    public static string TilePath(string root, string name) => Path.Combine(root, "tiles", name + ".png");
     public static string BgPath(string root, int era, string layer) => Path.Combine(root, "cenarios", EraSlug[era], layer + ".png");
 
     public static Look EnemyLook(Era e, EnemyKind k)
@@ -88,7 +89,12 @@ public static class DesignExport
             Need(BgPath(root, e, "fundo"), BgLoop, K.H, () => FarLayer(era));
             Need(BgPath(root, e, "meio"), BgLoop, K.H, () => MidLayer(era));
         }
+        Need(TilePath(root, "ponte"), 4 * K.T, 2 * K.T, BridgeTiles);
+        Need(TilePath(root, "escada"), 2 * K.T, K.T, LadderTiles);
+        Need(TilePath(root, "parede"), Eras.All.Length * K.T, 2 * K.T, HouseWall);
+        Need(TilePath(root, "concreto"), K.T, 2 * K.T, ConcreteTiles);
         Need(PropPath(root, "refem"), CW * Cols, CH * Rows, () => CharSheet(HostageLook));
+        Need(PropPath(root, "paraquedas"), 24, 18, ParachuteArt);
         Need(PropPath(root, "barril"), 32, 16, () => { Barrel(8, 15, false, 0); Barrel(24, 15, true, 0); });
         Need(PropPath(root, "glorb"), 64, 16, () => { for (int f = 0; f < 4; f++) Glorb(8 + f * 16, 8, f * 0.26f); });
         Need(PropPath(root, "jaula"), 64, 48, () => { CageBars(16, 47, 0f); CageBars(48, 47, 0.13f); });
@@ -339,6 +345,143 @@ public static class DesignExport
             Rect(x + rx, y + ry, 2, 2, Mul(e.Steel, 1.35f));
             Rect(x + rx + 1, y + ry + 1, 1, 1, e.SteelDark);
         }
+    }
+
+    /// <summary>ponte.png: linha 0 = corrimao de corda (desenhado no tile ACIMA da tabua): meio, poste esquerdo,
+    /// poste direito. Linha 1 = tabua (so os 5px de cima sao piso): inteira, estragada.</summary>
+    static void BridgeTiles()
+    {
+        const int T = K.T;
+        var wood = Hex(0x9a6432); var dark = Hex(0x5a3a1e); var light = Hex(0xc08a4e); var rope = Hex(0xd8c08a); var ropeD = Hex(0xa08a5a);
+        // corda do corrimao (ligeiramente caida no meio) e amarras ate a tabua
+        for (int x = 0; x < T; x++) Rect(x, 7 + (x >= 4 && x < 12 ? 1 : 0), 1, 1, rope);
+        Rect(3, 9, 1, 7, ropeD); Rect(11, 9, 1, 7, ropeD);
+        // postes
+        foreach (var (px, ox) in new[] { (T, 2), (2 * T, 11) })
+        {
+            Rect(px + ox, 4, 3, 12, wood); Rect(px + ox, 4, 1, 12, light); Rect(px + ox + 2, 4, 1, 12, dark);
+            Rect(px + ox - 1, 3, 5, 2, dark);
+            for (int x = 0; x < T; x++) Rect(px + x, 7, 1, 1, rope);
+        }
+        // tabuas
+        for (int k = 0; k < 2; k++)
+        {
+            int x0 = k * T, y0 = T;
+            Rect(x0, y0, T, 5, wood);
+            Rect(x0, y0, T, 1, light);
+            Rect(x0, y0 + 4, T, 1, dark);
+            for (int i = 0; i < 4; i++) { Rect(x0 + i * 4 + 3, y0 + 1, 1, 3, dark); Rect(x0 + i * 4 + 1, y0 + 2, 1, 1, Hex(0x3a3030)); }
+            Rect(x0 + 3, y0 + 5, 1, 2, ropeD); Rect(x0 + 11, y0 + 5, 1, 2, ropeD);     // amarras por baixo
+            if (k == 1)
+            {
+                // tabua rachada: falta um pedaco e ha lascas
+                Clear(x0 + 6, y0, 4, 3);
+                Rect(x0 + 5, y0 + 1, 1, 2, dark); Rect(x0 + 10, y0 + 1, 1, 2, dark);
+                Rect(x0 + 6, y0 + 3, 4, 1, Mul(dark, 0.8f));
+            }
+        }
+    }
+
+    /// <summary>escada.png: escada de madeira (inteira, estragada). Atravessa-se pelos lados; o topo serve de piso.</summary>
+    static void LadderTiles()
+    {
+        const int T = K.T;
+        var wood = Hex(0xa8743a); var dark = Hex(0x6a4420); var light = Hex(0xcc965a);
+        for (int k = 0; k < 2; k++)
+        {
+            int x0 = k * T;
+            foreach (int rx in new[] { 3, 11 })
+            {
+                Rect(x0 + rx, 0, 2, T, wood); Rect(x0 + rx, 0, 1, T, light);
+            }
+            for (int ry = 1; ry < T; ry += 4)
+            {
+                Rect(x0 + 5, ry, 6, 2, wood); Rect(x0 + 5, ry, 6, 1, light); Rect(x0 + 5, ry + 1, 6, 1, dark);
+            }
+            if (k == 1) { Clear(x0 + 6, 5, 4, 2); Rect(x0 + 5, 6, 1, 1, dark); Rect(x0 + 10, 5, 1, 1, dark); }
+        }
+    }
+
+    /// <summary>concreto.png: ponte de concreto. Celula de cima = tabuleiro (com guarda-corpo baixo e juntas);
+    /// celula de baixo = pilar.</summary>
+    static void ConcreteTiles()
+    {
+        const int T = K.T;
+        var c = Hex(0xa8a49c); var dark = Hex(0x76726c); var light = Hex(0xccc8c0); var stain = Hex(0x8e8a84);
+        // tabuleiro
+        Rect(0, 0, T, T, c);
+        Rect(0, 0, T, 2, light); Rect(0, 2, T, 1, dark);
+        Rect(0, 11, T, 5, Mul(c, 0.86f)); Rect(0, 15, T, 1, dark);              // viga lateral
+        Rect(T - 1, 3, 1, 13, dark);                                             // junta entre placas
+        Rect(3, 6, 2, 1, stain); Rect(9, 8, 3, 1, stain); Rect(6, 13, 2, 1, Mul(dark, 0.9f));
+        // pilar
+        Rect(3, T, 10, T, c);
+        Rect(3, T, 2, T, light); Rect(11, T, 2, T, dark);
+        Rect(6, T + 4, 2, 1, stain); Rect(8, T + 10, 2, 1, stain);
+    }
+
+    /// <summary>parede.png: fundo de dentro das casas, uma coluna por era (selva, jurassico, medieval, futuro).
+    /// Linha 0 = parede lisa; linha 1 = parede com janela.</summary>
+    static void HouseWall()
+    {
+        const int T = K.T;
+        for (int ei = 0; ei < Eras.All.Length; ei++)
+        {
+            var e = Eras.All[ei];
+            var b = Col.Lerp(Mul(e.Brick, 0.42f), Hex(0x24202c), 0.35f);
+            var dark = Mul(b, 0.72f); var light = Mul(b, 1.2f);
+            for (int row = 0; row < 2; row++)
+            {
+                int x = ei * T, y = row * T;
+                Rect(x, y, T, T, b);
+                if (e.Style == BgStyle.Future)
+                {
+                    // paineis de metal
+                    Rect(x, y, T, 1, light); Rect(x, y + T - 1, T, 1, dark); Rect(x + T - 1, y, 1, T, dark);
+                    Rect(x + 2, y + 2, 1, 1, light); Rect(x + T - 3, y + 2, 1, 1, light);
+                }
+                else
+                {
+                    // tabuas verticais com rodape
+                    for (int k = 0; k < 4; k++) Rect(x + k * 4 + 3, y, 1, T, dark);
+                    for (int k = 0; k < 4; k++) Rect(x + k * 4, y, 1, T, Mul(b, 1.08f));
+                    Rect(x, y + 11, T, 1, light); Rect(x, y + 12, T, 1, dark);
+                }
+                if (row == 1)
+                {
+                    // janela com luz fraca
+                    Rect(x + 3, y + 2, 10, 8, Mul(dark, 0.8f));
+                    Rect(x + 4, y + 3, 8, 6, Col.Lerp(e.SkyTop, Hex(0x101018), 0.55f));
+                    Rect(x + 4, y + 3, 3, 2, Col.Lerp(e.SkyBot, Hex(0x101018), 0.4f));
+                    Rect(x + 7, y + 3, 1, 6, Mul(dark, 0.8f)); Rect(x + 4, y + 6, 8, 1, Mul(dark, 0.8f));
+                }
+            }
+        }
+    }
+
+    /// <summary>paraquedas.png: copula com cordas; a base (ponto onde as cordas se juntam) no fundo, ao centro.</summary>
+    static void ParachuteArt()
+    {
+        var a = Hex(0xd8d0b0); var b = Hex(0xa83a2a); var rope = Hex(0x6a6050);
+        Rect(4, 1, 16, 2, a); Rect(2, 3, 20, 3, a); Rect(1, 6, 22, 2, a);
+        for (int i = 0; i < 4; i++) Rect(4 + i * 5, 2, 2, 6, b);
+        Rect(1, 8, 2, 1, Mul(a, 0.8f)); Rect(21, 8, 2, 1, Mul(a, 0.8f));
+        for (int yy = 9; yy < 18; yy++)
+        {
+            float t = (yy - 9) / 8f;
+            Rect((int)(2 + t * 9), yy, 1, 1, rope);
+            Rect((int)(21 - t * 9), yy, 1, 1, rope);
+        }
+    }
+
+    /// <summary>Apaga (deixa transparente) um retangulo ja desenhado.</summary>
+    static void Clear(int x, int y, int w, int h)
+    {
+        Rlgl.DrawRenderBatchActive();
+        Rlgl.DisableColorBlend();
+        Raylib.DrawRectangle(x, y, w, h, new Color(0, 0, 0, 0));
+        Rlgl.DrawRenderBatchActive();
+        Rlgl.EnableColorBlend();
     }
 
     static void Crate(int x, int y)

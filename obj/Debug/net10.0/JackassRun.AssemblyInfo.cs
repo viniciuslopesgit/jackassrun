@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("JackassRun")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+374abda5937d94bc00db10979ef78c8c373da0c9")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a603c3386bff61635190131bf9331be96b56aee5")]
 [assembly: System.Reflection.AssemblyProductAttribute("JackassRun")]
 [assembly: System.Reflection.AssemblyTitleAttribute("JackassRun")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

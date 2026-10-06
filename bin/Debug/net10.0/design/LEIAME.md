@@ -55,3 +55,32 @@ Nada tem contorno preto: as formas sao definidas so pelas cores e pelo sombreame
   na horizontal. A borda direita deve encaixar na esquerda.
 
 Efeitos (fogo, fumaca, sangue, faiscas, brilhos, estrelas) sao gerados pelo codigo.
+
+## Animacoes soltas dos herois (opcional)
+
+Em vez de editar a folha `sprites/herois/NOME.png`, pode desenhar uma animacao frame a frame numa pasta:
+
+    sprites/herois/batman/running/running0000.png, running0001.png, ...
+
+- Um PNG por frame, todos do mesmo tamanho (ex.: 32x32), tocados por ordem alfabetica.
+- O heroi olha para a DIREITA. Os pes ficam centrados na horizontal; a linha mais baixa desenhada e o chao.
+- Fundo: transparente, ou uma cor solida (a cor do pixel do canto superior esquerdo vira transparente).
+- Pastas aceites: stop (parado), running (a correr), jump, fall, climb, dash, hurt, cheer, tumble.
+  A que nao existir continua a usar a folha. F5 recarrega.
+- Arma principal: um PNG na pasta armour/ do heroi (ex.: sprites/herois/batman/armour/shuriken.png) substitui o
+  projetil padrao desse heroi. A imagem e desenhada centrada no projetil e gira depois de lancada
+  (velocidade em Tune.WeaponSpin, graus por segundo). Fundo transparente.
+
+## tiles/ponte.png, escada.png, concreto.png e parede.png
+
+- ponte.png (64x32): linha de cima = corrimao de corda, desenhado no tile ACIMA da tabua
+  (meio, poste da ponta esquerda, poste da ponta direita). Linha de baixo = tabua inteira e tabua estragada.
+  So os 5px de cima da tabua contam como piso / alvo dos tiros.
+- escada.png (32x16): escada (a segunda celula esta reservada). O topo da escada serve de piso. Escadas sao indestrutiveis.
+- concreto.png (16x32): ponte de concreto. Celula de cima = tabuleiro; celula de baixo = pilar.
+- parede.png (64x32): fundo de dentro das casas, uma coluna por era (selva, jurassico, medieval, futuro).
+  Linha de cima = parede lisa; linha de baixo = parede com janela (usada na fileira de cima da sala).
+
+## sprites/objetos/paraquedas.png
+- paraquedas.png (24x18): copula dos paraquedistas; o ponto onde as cordas se juntam fica no fundo, ao centro
+  (e ali que fica a cabeca do soldado).

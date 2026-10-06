@@ -119,6 +119,14 @@ public sealed partial class Game
             {
                 ushort b = Ter.Get(tx, ty);
                 int type = Terrain.TypeOf(b);
+                // parede ao fundo dentro das casas (e atras das portas e paredes, para quando forem destruidas)
+                if ((type == 0 || type == Terrain.DOOR) && InHouse(tx, ty))
+                {
+                    int win = ty == HouseTop(tx, ty) && Hash.H(tx, 991) % 3 == 0 ? 1 : 0;
+                    Raylib.DrawTextureRec(Art.HouseWall, new Rectangle(ei * K.T, win * K.T, K.T, K.T),
+                        new Vector2(tx * K.T - cam, ty * K.T - camY + shY), Color.White);
+                    if (type == 0) continue;
+                }
                 if (type == 0)
                 {
                     // espaco aberto no subsolo: parede de terra escura ao fundo (tuneis, cavernas, buracos cavados)
@@ -127,6 +135,9 @@ public sealed partial class Game
                             new Vector2(tx * K.T - cam, ty * K.T - camY + shY), CaveTint);
                     continue;
                 }
+                if (Terrain.Passable(type) && Ter.Underground(tx, ty))
+                    Raylib.DrawTextureRec(Art.Tiles[ei], new Rectangle((int)(Hash.H(tx, ty) % 4) * K.T, 2 * K.T, K.T, K.T),
+                        new Vector2(tx * K.T - cam, ty * K.T - camY + shY), CaveTint);
                 DrawTile(tx, ty, type, Terrain.DmgOf(b), Terrain.VarOf(b), Terrain.LookOf(b), e);
             }
             // fenda temporal entre eras
@@ -142,6 +153,19 @@ public sealed partial class Game
                 }
             }
         }
+    }
+
+    /// <summary>Area de uma casa (sala + porta, parede do fundo e teto).</summary>
+    bool InHouse(int tx, int ty)
+    {
+        foreach (var r in S.Rooms) if (tx >= r.X0 - 1 && tx <= r.X1 + 1 && ty >= r.Y0 - 1 && ty <= r.Y1) return true;
+        return false;
+    }
+
+    int HouseTop(int tx, int ty)
+    {
+        foreach (var r in S.Rooms) if (tx >= r.X0 - 1 && tx <= r.X1 + 1 && ty >= r.Y0 - 1 && ty <= r.Y1) return r.Y0;
+        return -1;
     }
 
     static readonly Color CaveTint = new(78, 72, 86, 255), BedrockTint = new(120, 116, 132, 255);
@@ -163,6 +187,38 @@ public sealed partial class Game
         {
             // rocha-mae: terra funda acinzentada, indestrutivel
             Raylib.DrawTextureRec(tex, new Rectangle(variant * K.T, 2 * K.T, K.T, K.T), new Vector2(x, y), BedrockTint);
+            return;
+        }
+        if (type == Terrain.BRIDGE)
+        {
+            // ponte: tabua (inteira/estragada) + corrimao de corda no tile de cima, com postes nas pontas
+            var bt = Art.Bridge;
+            float fuse = decor ? BridgeFuseAt(tx, ty) : -1;
+            int shakeX = fuse >= 0 ? (int)MathF.Round(MathF.Sin(time * 50 + tx) * (fuse < Tune.BridgeFall * 0.5f ? 1.5f : 0.6f)) : 0;
+            int sag = fuse >= 0 && fuse < Tune.BridgeFall * 0.35f ? 1 : 0;
+            Raylib.DrawTextureRec(bt, new Rectangle((dmg > 0 || fuse >= 0 ? 1 : 0) * K.T, K.T, K.T, K.T), new Vector2(x + shakeX, y + sag), Color.White);
+            if (decor)
+            {
+                int rail = Ter.Type(tx - 1, ty) != Terrain.BRIDGE ? 1 : Ter.Type(tx + 1, ty) != Terrain.BRIDGE ? 2 : 0;
+                Raylib.DrawTextureRec(bt, new Rectangle(rail * K.T, 0, K.T, K.T), new Vector2(x, y - K.T), Color.White);
+            }
+            return;
+        }
+        if (type == Terrain.CONCRETE)
+        {
+            // ponte de concreto: tabuleiro (topo) e pilares (concreto embaixo de concreto)
+            bool pillar = Ter.Type(tx, ty - 1) == Terrain.CONCRETE;
+            Raylib.DrawTextureRec(Art.Concrete, new Rectangle(0, (pillar ? 1 : 0) * K.T, K.T, K.T), new Vector2(x, y), Color.White);
+            if (dmg > 0)
+            {
+                int stage = Math.Clamp((dmg * 3 + Terrain.HpOf(type) - 1) / Terrain.HpOf(type), 1, 3);
+                Raylib.DrawTextureRec(tex, new Rectangle((3 + stage) * K.T, 3 * K.T, K.T, K.T), new Vector2(x, y), Color.White);
+            }
+            return;
+        }
+        if (type == Terrain.LADDER)
+        {
+            Raylib.DrawTextureRec(Art.Ladder, new Rectangle((dmg > 0 ? 1 : 0) * K.T, 0, K.T, K.T), new Vector2(x, y), Color.White);
             return;
         }
         if (type == Terrain.DOOR)
@@ -289,9 +345,10 @@ public sealed partial class Game
                         an = Anim.Of(AState.Jump, e.AnimT);
                         hop = (int)(MathF.Sin((1 - e.AlertT / 0.5f) * MathF.PI) * 5);
                     }
-                    else an = Anim.FromPhysics(e.OnGround, false, e.VX, e.VY, e.AnimT, e.LandT);
+                    else an = Anim.FromPhysics(e.OnGround, e.OnLadder, e.VX, e.VY, e.AnimT, e.LandT);
                     an.Recoil = e.MuzzleT > 0 ? 1 : 0;
                     bool fuse = e.FuseT >= 0 && (int)(time * 14) % 2 == 0;
+                    if (e.Para) Art.Cell(Art.Parachute, 0, 0, x, y - e.Height - 1, 1, 0, tint);
                     Art.Human(Art.Grunts[ei, DesignExport.GruntIndex(e.Kind)], x, y - hop, e.Facing, an, 1, fuse ? Red : over, tint);
                     if (e.StunT > 0)
                         for (int k = 0; k < 3; k++)
@@ -337,7 +394,7 @@ public sealed partial class Game
         foreach (var c in corpses)
         {
             if (c.Sprite == null) continue;
-            float a = c.Life < 0.6f ? ((int)(c.Life * 20) % 2 == 0 ? 0.3f : 1f) : 1f;
+            float a = c.Life < 0.35f ? ((int)(c.Life * 20) % 2 == 0 ? 0.3f : 1f) : 1f;
             int rot = (((int)MathF.Round(c.Angle / 90f)) % 4 + 4) % 4;
             int x = SX(c.X), y = SY(c.Y);
             if (c.IsFlyer) Art.Cell(c.Sprite, 0, 0, x, y, c.Facing, rot, A(White, a));
@@ -410,6 +467,14 @@ public sealed partial class Game
             int x = SX(b.X), y = SY(b.Y);
             int d = b.VX >= 0 ? 1 : -1;
             float a = b.Ghost ? 0.6f : 1f;
+            // arma principal com sprite proprio (ex.: batarangue do Batman): gira depois de lancada
+            if (b.Char >= 0 && b.Char < Art.HeroWeapon.Length && Art.HeroWeapon[b.Char] is Texture2D wt)
+            {
+                float ang = b.T * Tune.WeaponSpin * b.Spin;
+                Raylib.DrawTexturePro(wt, new Rectangle(0, 0, wt.Width, wt.Height), new Rectangle(x, y, wt.Width, wt.Height),
+                    new Vector2(wt.Width / 2f, wt.Height / 2f), ang, A(White, a));
+                continue;
+            }
             if (b.Kind == BulletKind.Slash)
             {
                 float t = 1 - b.Life / (b.W > 40 ? 0.14f : 0.1f);

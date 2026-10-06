@@ -63,15 +63,18 @@ public sealed partial class Game
         AddPart(PKind.Flash, x, y, 0, 0, 0.06f, 6, White);
     }
 
-    void AddCorpse(float x, float y, Sheet sprite, int facing, float dir, bool flyer, Era? era)
+    void AddCorpse(float x, float y, Sheet sprite, int facing, float dir, bool flyer, Era? era, float life = 2.4f)
     {
         if (dir == 0) dir = -facing;
         corpses.Add(new Corpse
         {
-            X = x, Y = y, Sprite = sprite, Facing = facing, IsFlyer = flyer, Era = era,
+            Life = life, X = x, Y = y, Sprite = sprite, Facing = facing, IsFlyer = flyer, Era = era,
             VX = dir * R(90, 160), VY = -R(160, 250), Spin = dir * R(500, 900) * facing,
         });
     }
+
+    /// <summary>Quanto tempo o corpo de um inimigo fica no chao antes de sumir.</summary>
+    float CorpseLife() => R(Tune.CorpseMin, Tune.CorpseMax);
 
     // ------------------------------------------------------------------ dano em inimigos
 
@@ -112,12 +115,12 @@ public sealed partial class Game
         if (machine)
         {
             Explode(e.X, cy, 16, true, K.PLAYER_ID);
-            if (e.Kind == EnemyKind.Flyer) AddCorpse(e.X, cy, Art.Flyers[Eras.IndexForX(e.X)], e.Facing, e.HitDir, true, era);
+            if (e.Kind == EnemyKind.Flyer) AddCorpse(e.X, cy, Art.Flyers[Eras.IndexForX(e.X)], e.Facing, e.HitDir, true, era, CorpseLife());
         }
         else if (e.Kind == EnemyKind.Flyer)
         {
             BloodSpray(e.X, cy, e.HitDir, 14, blood, 1.1f);
-            AddCorpse(e.X, cy, Art.Flyers[Eras.IndexForX(e.X)], e.Facing, e.HitDir, true, era);
+            AddCorpse(e.X, cy, Art.Flyers[Eras.IndexForX(e.X)], e.Facing, e.HitDir, true, era, CorpseLife());
         }
         else
         {
@@ -125,7 +128,7 @@ public sealed partial class Game
             if (e.LastBoom) Gibs(e.X, cy, look.Skin, look.Shirt, look.Pants, blood, e.Kind == EnemyKind.Brute ? 45 : 30);
             else
             {
-                AddCorpse(e.X, e.Y + Gfx.Pivot, Art.Grunts[Eras.IndexForX(e.X), DesignExport.GruntIndex(e.Kind)], e.Facing, e.HitDir, false, era);
+                AddCorpse(e.X, e.Y + Gfx.Pivot, Art.Grunts[Eras.IndexForX(e.X), DesignExport.GruntIndex(e.Kind)], e.Facing, e.HitDir, false, era, CorpseLife());
                 BloodSpray(e.X, cy, e.HitDir, e.Kind == EnemyKind.Brute ? 24 : 16, blood, 1.25f);
             }
             if (era.Style == BgStyle.Future)
@@ -144,6 +147,13 @@ public sealed partial class Game
         ushort b = Ter.Get(tx, ty);
         int type = Terrain.TypeOf(b);
         if (type == 0) return true;
+        if (type == Terrain.LADDER) return false;          // escadas sao indestrutiveis
+        if (type == Terrain.CONCRETE && dmg < 99)
+        {
+            // concreto: balas so lascam (so explosoes estragam)
+            for (int k = 0; k < 2; k++) AddPart(PKind.Spark, tx * K.T + K.HT, ty * K.T + 3, R(-50, 50), -R(20, 60), 0.15f, 1, k == 0 ? White : Hex(0xb8b4ac));
+            return false;
+        }
         float cx = tx * K.T + K.HT, cy = ty * K.T + K.HT;
         if (Terrain.Unbreakable(type))
         {
@@ -181,8 +191,93 @@ public sealed partial class Game
 
     static Color TileColor(int type, Era e) => type switch
     {
-        Terrain.DIRT => e.Dirt, Terrain.BRICK => e.Brick, Terrain.STEEL => e.Steel, Terrain.BEDROCK => e.DirtDark, Terrain.DOOR => Hex(0x9a6432), _ => Hex(0xa8743a),
+        Terrain.DIRT => e.Dirt, Terrain.BRICK => e.Brick, Terrain.STEEL => e.Steel, Terrain.BEDROCK => e.DirtDark, Terrain.DOOR => Hex(0x9a6432), Terrain.CONCRETE => Hex(0xa8a49c), _ => Hex(0xa8743a),
     };
+
+    // ------------------------------------------------------------------ pontes de madeira
+
+    /// <summary>O heroi pisou em tabuas de ponte de madeira: cada uma cai Tune.BridgeFall segundos depois.</summary>
+    void StepOnBridge(Player p)
+    {
+        int row = (int)MathF.Round(p.Y / K.T);
+        if (MathF.Abs(p.Y - row * K.T) > 0.5f) return;
+        int x0 = (int)MathF.Floor((p.X - 3.5f) / K.T), x1 = (int)MathF.Floor((p.X + 3.49f) / K.T);
+        for (int tx = x0; tx <= x1; tx++)
+        {
+            if (Ter.Type(tx, row) != Terrain.BRIDGE) continue;
+            bool known = false;
+            foreach (var f in S.BridgeFuses) if (f.X == tx && f.Y == row) { known = true; break; }
+            if (known) continue;
+            S.BridgeFuses.Add(new BridgeFuse { X = tx, Y = row, T = Tune.BridgeFall });
+            sfx.Play("hit", 0.35f, 0.45f);                  // rangido da madeira
+        }
+    }
+
+    void UpdateBridgeFuses()
+    {
+        for (int i = S.BridgeFuses.Count - 1; i >= 0; i--)
+        {
+            var f = S.BridgeFuses[i];
+            f.T -= K.DT;
+            if (f.T > 0) continue;
+            S.BridgeFuses.RemoveAt(i);
+            if (Ter.Type(f.X, f.Y) != Terrain.BRIDGE) continue;
+            Ter.Set(S.Frame, f.X, f.Y, 0);
+            // a tabua despenca em pedacos
+            var wood = Hex(0x9a6432);
+            for (int k = 0; k < 5; k++)
+                AddPart(PKind.Debris, f.X * K.T + R(2, 14), f.Y * K.T + R(0, 4), R(-40, 40), R(-30, 40), 1.4f, fx.Next(2, 4), k % 2 == 0 ? wood : Mul(wood, 0.7f), 540);
+            sfx.Play("hit", 0.5f, 0.6f);
+        }
+    }
+
+    /// <summary>Segundos restantes ate a tabua cair (ou -1 se ninguem pisou nela).</summary>
+    float BridgeFuseAt(int tx, int ty)
+    {
+        foreach (var f in S.BridgeFuses) if (f.X == tx && f.Y == ty) return f.T;
+        return -1;
+    }
+
+    // ------------------------------------------------------------------ escadas
+
+    /// <summary>Ao gerar o mapa, uma escada so fica se levar a algum lugar que valha a pena:
+    /// (1) ao subsolo (tunel, caverna, poco), (2) a uma porta (andar novo de uma construcao) ou
+    /// (3) a um piso de pelo menos 3 blocos ao lado do degrau de cima. Escada que so da acesso a um bloco
+    /// solto (topo de uma coluna) ou sem chao por baixo e removida inteira. Depois de gerada, e indestrutivel.</summary>
+    void ValidateLadderCol(int tx)
+    {
+        int y = 0;
+        while (y < K.ROWS)
+        {
+            if (!Ter.Ladder(tx, y)) { y++; continue; }
+            int top = y, bot = y;
+            while (bot + 1 < K.ROWS && Ter.Ladder(tx, bot + 1)) bot++;
+            y = bot + 1;
+            if (!LadderUseful(tx, top, bot))
+                for (int r = top; r <= bot; r++) Ter.SetRaw(tx, r, 0);
+        }
+    }
+
+    bool LadderUseful(int tx, int top, int bot)
+    {
+        if (!Ter.Solid(tx, bot + 1)) return false;                       // precisa de chao firme
+        if (Ter.Underground(tx, bot)) return true;                       // leva ao subsolo
+        for (int d = -1; d <= 1; d += 2)
+        {
+            // porta ao lado do topo: acesso a um andar novo
+            if (Ter.Type(tx + d, top - 1) == Terrain.DOOR || Ter.Type(tx + d, top - 2) == Terrain.DOOR) return true;
+            // piso onde se pode andar: blocos seguidos com espaco livre por cima
+            int span = 0;
+            for (int x = tx + d; span < 3; x += d)
+            {
+                bool floor = Ter.Solid(x, top) || Ter.Platform(x, top);
+                if (!floor || Ter.Solid(x, top - 1)) break;
+                span++;
+            }
+            if (span >= 3) return true;
+        }
+        return false;
+    }
 
     /// <summary>Estruturas sem apoio (sem chao embaixo nem aco segurando) desabam em blocos.</summary>
     void ProcessCollapse()
@@ -202,7 +297,7 @@ public sealed partial class Game
                 {
                     float chance = Ter.Type(bx, above) switch
                     {
-                        Terrain.DIRT => Tune.FallDirt, Terrain.BRICK => Tune.FallBrick, _ => Tune.FallCrate,
+                        Terrain.DIRT => Tune.FallDirt, Terrain.BRICK => Tune.FallBrick, Terrain.CONCRETE => 0.1f, _ => Tune.FallCrate,
                     };
                     if (!S.Rng.Chance(chance)) continue;
                 }
@@ -305,7 +400,7 @@ public sealed partial class Game
             {
                 int ty = below - 1;
                 while (ty >= 0 && Ter.Solid(tx, ty)) ty--;        // pousa em cima do que ja estiver ali
-                if (ty >= 0) Ter.Set(S.Frame, tx, ty, f.Tile);
+                if (ty >= 0 && !Ter.Ladder(tx, ty)) Ter.Set(S.Frame, tx, ty, f.Tile);   // na escada o bloco se desfaz
                 f.Dead = true;
                 var c = TileColor(Terrain.TypeOf(f.Tile), Eras.ForCol(tx));
                 for (int k = 0; k < 3; k++) AddPart(PKind.Smoke, f.X + R(0, K.T), ty * K.T + K.T, R(-30, 30), -R(5, 20), 0.6f, 2.5f, A(Col.Lerp(c, White, 0.35f), 0.8f));
@@ -348,7 +443,7 @@ public sealed partial class Game
             {
                 float dx = tx * K.T + K.HT - x, dy = ty * K.T + K.HT - y;
                 if (dx * dx + dy * dy > r * r * 0.9f) continue;
-                if (Ter.Solid(tx, ty)) DamageTile(tx, ty, 99);
+                if (Ter.Type(tx, ty) != 0) DamageTile(tx, ty, 99);
             }
         foreach (var e in S.Enemies)
         {
@@ -514,7 +609,7 @@ public sealed partial class Game
             if (!c.IsFlyer && fx.Next(4) == 0) AddPart(PKind.Blood, c.X, c.Y, R(-20, 20), 0, 0.8f, 1, c.Era != null ? BloodOf(c.Era) : BloodRed, 540);
             float nx = c.X + c.VX * dt, ny = c.Y + c.VY * dt;
             if (Ter.SolidAt(nx, c.Y)) { c.VX *= -0.4f; nx = c.X; }
-            if (c.VY > 0 && Ter.SolidAt(nx, ny + 4))
+            if (c.VY > 0 && Ter.StandAt(nx, ny + 4))
             {
                 ny = MathF.Floor((ny + 4) / K.T) * K.T - 4;
                 c.Bounces++;

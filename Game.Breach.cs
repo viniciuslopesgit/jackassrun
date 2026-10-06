@@ -58,6 +58,7 @@ public sealed partial class Game
 
     void Stun(Enemy e)
     {
+        e.OnLadder = false;
         e.StunT = StunTime;
         e.AlertT = 0;
         e.FuseT = -1;
@@ -98,6 +99,92 @@ public sealed partial class Game
         return true;
     }
 
+    // ------------------------------------------------------------------ inimigos nas escadas
+
+    const float EnemyClimb = 50;      // velocidade dos inimigos na escada (px/s)
+
+    /// <summary>Comeca a subir (dir -1) ou descer (dir 1) a escada da coluna onde o inimigo esta.</summary>
+    bool StartLadder(Enemy e, int dir)
+    {
+        bool ok = dir < 0 ? Ter.LadderAt(e.X, e.Y - 2) : Ter.LadderAt(e.X, e.Y + 2);
+        if (!ok || !e.OnGround) return false;
+        e.OnLadder = true; e.LadderDir = dir; e.VX = 0; e.VY = 0;
+        e.LadderCol = (int)MathF.Floor(e.X / K.T);
+        return true;
+    }
+
+    /// <summary>Movimento na escada. Retorna true enquanto o inimigo estiver nela.</summary>
+    bool LadderTick(Enemy e)
+    {
+        if (!e.OnLadder) return false;
+        float dt = K.DT;
+        int col = (int)MathF.Floor(e.X / K.T);
+        e.X = Approach(e.X, col * K.T + K.HT, 60 * dt);
+        e.VX = 0;
+        e.VY = e.LadderDir * EnemyClimb;
+        if (e.LadderDir < 0 && !Ter.LadderAt(e.X, e.Y - 2) && Ter.LadderAt(e.X, e.Y + 2))
+        {
+            // chegou ao topo: fica de pe em cima da escada
+            float top = MathF.Floor((e.Y + 2) / K.T) * K.T;
+            if (!Overlaps(e.X, top, e.HalfW - 0.5f, e.Height - 2)) e.Y = MathF.Min(e.Y, top);
+            e.OnLadder = false; e.VY = 0; e.OnGround = true;
+            e.StateT = S.Rng.Range(0.6f, 1.6f); e.Walking = true;
+            if (S.Rng.Chance(0.5f)) e.Facing = -e.Facing;
+            return true;
+        }
+        float y0 = e.Y;
+        bool ground = MoveBody(ref e.X, ref e.Y, ref e.VX, ref e.VY, e.HalfW - 0.5f, e.Height - 2, out _, true);
+        bool onAny = Ter.LadderAt(e.X, e.Y - 2) || Ter.LadderAt(e.X, e.Y - e.Height + 4) || Ter.LadderAt(e.X, e.Y + 2);
+        if (e.LadderDir > 0 && ground && !Ter.LadderAt(e.X, e.Y + 2) || !onAny || MathF.Abs(e.Y - y0) < 0.01f)
+        {
+            // chegou ao chao, a escada sumiu ou ficou preso: larga a escada
+            e.OnLadder = false;
+            e.StateT = S.Rng.Range(0.6f, 1.6f); e.Walking = true;
+        }
+        e.OnGround = false;
+        return true;
+    }
+
+    /// <summary>Patrulhando: ao passar pelo meio de uma escada, as vezes resolve subir ou descer.</summary>
+    void MaybeLadder(Enemy e)
+    {
+        if (!e.OnGround || !e.Walking) return;
+        int col = (int)MathF.Floor(e.X / K.T);
+        if (col == e.LadderCol || MathF.Abs(e.X - (col * K.T + K.HT)) > 3) return;
+        e.LadderCol = col;
+        bool up = Ter.LadderAt(e.X, e.Y - 2), down = Ter.LadderAt(e.X, e.Y + 2);
+        if (!(up || down) || !S.Rng.Chance(Tune.LadderChance)) return;
+        StartLadder(e, up && (!down || S.Rng.Chance(0.5f)) ? -1 : 1);
+    }
+
+    /// <summary>Perseguindo um alvo noutra altura: procura uma escada por perto que va para o lado certo,
+    /// anda ate ela e sobe/desce. Retorna true se encontrou um caminho (e ja definiu e.VX).</summary>
+    bool SeekLadder(Enemy e, float targetY, float speed)
+    {
+        if (!e.OnGround) return false;
+        float dy = targetY - e.Y;
+        if (MathF.Abs(dy) < 20) return false;
+        int dir = dy < 0 ? -1 : 1;
+        int c0 = (int)MathF.Floor(e.X / K.T);
+        for (int d = 0; d <= 5; d++)
+            foreach (int c in d == 0 ? new[] { c0 } : new[] { c0 - d, c0 + d })
+            {
+                float cx = c * K.T + K.HT;
+                if (!(dir < 0 ? Ter.LadderAt(cx, e.Y - 2) : Ter.LadderAt(cx, e.Y + 2))) continue;
+                // caminho livre ate la (sem parede e com chao)
+                int s = Math.Sign(c - c0);
+                bool clear = true;
+                for (int k = c0 + s; s != 0 && k != c; k += s)
+                    if (Ter.Solid(k, (int)MathF.Floor((e.Y - 4) / K.T)) || !Ter.StandAt(k * K.T + K.HT, e.Y + 2)) { clear = false; break; }
+                if (!clear) continue;
+                if (MathF.Abs(e.X - cx) <= 2) { e.X = cx; StartLadder(e, dir); return true; }
+                e.Facing = cx < e.X ? -1 : 1;
+                e.VX = e.Facing * speed;
+                return true;
+            }
+        return false;
+    }
+
     // ------------------------------------------------------------------ salas escuras
 
     bool InHiddenRoom(float x, float y)
@@ -128,6 +215,8 @@ public sealed partial class Game
     void UpdateCharger(Enemy e)
     {
         if (StunTick(e)) return;
+        if (EnterTick(e)) return;
+        if (LadderTick(e)) return;
         float dt = K.DT;
         e.VY = MathF.Min(e.VY + K.GRAV * dt, 400);
         bool knife = e.Kind == EnemyKind.Knife;
@@ -139,7 +228,7 @@ public sealed partial class Game
             if (e.FuseT < 0) { e.Dead = true; Explode(e.X, e.Y - 8, 32, false, e.Id); return; }
         }
         else if (!InHiddenRoom(e.X, e.Y - 8) && OnScreen(e) &&
-                 FindTarget(e.X, e.Y - 8, e.Alerted ? 220 : Tune.SeeRange, 40, out float tx, out float ty))
+                 FindTarget(e.X, e.Y - 8, e.Alerted ? 220 : Tune.SeeRange, e.Alerted ? 110 : 40, out float tx, out float ty))
         {
             e.Facing = tx < e.X ? -1 : 1;
             if (!e.Alerted)
@@ -148,9 +237,9 @@ public sealed partial class Game
                 e.AlertT -= dt; e.VX = 0;
                 if (e.AlertT <= 0) { e.Alerted = true; e.AlertT = 0; }
             }
-            else
+            else if (!SeekLadder(e, ty + 8, knife ? 75 : 50))
             {
-                e.VX = e.Facing * (knife ? 72 : 42);
+                e.VX = e.Facing * (knife ? 88 : 54);
                 // pula obstaculos de 1 bloco
                 if (e.OnGround && Ter.SolidAt(e.X + e.Facing * (e.HalfW + 2), e.Y - 4)) e.VY = -215;
                 if (!knife && MathF.Abs(tx - e.X) < 26 && MathF.Abs(ty - (e.Y - 8)) < 22)
@@ -166,9 +255,10 @@ public sealed partial class Game
             e.Alerted = false; e.AlertT = 0;
             e.StateT -= dt;
             if (e.StateT <= 0) { e.StateT = S.Rng.Range(1f, 2.5f); e.Walking = S.Rng.Chance(0.5f); if (S.Rng.Chance(0.3f)) e.Facing = -e.Facing; }
-            e.VX = e.Walking ? e.Facing * 16 : 0;
-            if (e.OnGround && e.Walking && (Ter.SolidAt(e.X + e.Facing * (e.HalfW + 2), e.Y - 4) || !Ter.SolidAt(e.X + e.Facing * (e.HalfW + 2), e.Y + 2)))
+            e.VX = e.Walking ? e.Facing * 22 : 0;
+            if (e.OnGround && e.Walking && (Ter.SolidAt(e.X + e.Facing * (e.HalfW + 2), e.Y - 4) || !Ter.StandAt(e.X + e.Facing * (e.HalfW + 2), e.Y + 2)))
             { e.Facing = -e.Facing; e.VX = 0; }
+            MaybeLadder(e);
         }
 
         bool was = e.OnGround;

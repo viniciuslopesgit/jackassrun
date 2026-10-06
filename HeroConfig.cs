@@ -21,11 +21,12 @@ public sealed class HeroStats
                                         //   (batarangue: metade indo, metade voltando)
     public float AtordoamentoTiro;      // segundos que o inimigo fica atordoado ao ser atingido (0 = nao atordoa)
 
-    // dano do tiro nos blocos (vida de cada bloco: terra 8, tijolo 5, caixa 3, porta 2; aco e rocha nao quebram)
+    // dano do tiro nos blocos (vida de cada bloco: terra 8, tijolo 5, caixa 3, porta 2, ponte 2; aco e rocha nao quebram)
     public int DanoTerra;               // dano por tiro num bloco de terra
     public int DanoTijolo;              // dano por tiro num bloco de tijolo
     public int DanoCaixa;               // dano por tiro numa caixa de madeira
     public int DanoPorta;               // dano por tiro numa porta
+    public int DanoPonte;               // dano por tiro numa tabua de ponte (vida 2)
 
     /// <summary>Dano do tiro deste heroi num tipo de bloco (Terrain.DIRT, BRICK...).</summary>
     public int DanoBloco(int type) => type switch
@@ -34,6 +35,7 @@ public sealed class HeroStats
         Terrain.BRICK => DanoTijolo,
         Terrain.CRATE => DanoCaixa,
         Terrain.DOOR => DanoPorta,
+        Terrain.BRIDGE => DanoPonte,
         _ => DanoTiro,
     };
 
@@ -44,6 +46,10 @@ public sealed class HeroStats
     public float AtordoamentoEspecial;  // segundos de atordoamento causados pelo especial
     public int QuantidadeEspecial;      // quantos projeteis o especial solta (leque de teias)
     public float AberturaEspecial;      // abertura do leque entre um projetil e outro
+
+    // animacao
+    public float FpsCorrida;            // frames por segundo da animacao de correr (na velocidade normal; acelera/abranda com o heroi)
+    public float FpsAnimacoes;          // frames por segundo das outras animacoes desenhadas em pastas (stop, jump, fall...)
 }
 
 /// <summary>Variaveis de cada heroi. Edite os numeros aqui e rode o jogo de novo.
@@ -56,27 +62,35 @@ public static class HeroConfig
         new HeroStats
         {
             Nome = "BATMAN", Apelido = "O CAVALEIRO DAS TREVAS", NomeArma = "BATARANGUE", NomeEspecial = "BOMBA DE FUMACA",
-            VelocidadeCorrida = 100,
+            VelocidadeCorrida = 120,
+
             ForcaPulo = 238,
             PulosNoAr = 0,
-            VelocidadeEscalada = 70,
-            QuedaPlanando = 45,
-            IntervaloTiro = 0.36f,
-            VelocidadeTiro = 500,
+            VelocidadeEscalada = 100,
+            QuedaPlanando = 200,
+
+            IntervaloTiro = 0.20f,
+            VelocidadeTiro = 400,
             DanoTiro = 4,
-            DispersaoTiro = 0,
-            AlcanceTiro = 2f,
+            DispersaoTiro = 1,
+            AlcanceTiro = 1f,
             AtordoamentoTiro = 0.5f,
+
             DanoTerra = 4,
-            DanoTijolo = 3,
-            DanoCaixa = 3,
+            DanoTijolo = 2,
+            DanoCaixa = 2,
             DanoPorta = 2,
+            DanoPonte = 2,
+
             EspeciaisIniciais = 3,
             VelocidadeEspecial = 0,
             RaioEspecial = 90,
             AtordoamentoEspecial = 2.4f,
             QuantidadeEspecial = 1,
             AberturaEspecial = 0,
+            
+            FpsCorrida = 15,
+            FpsAnimacoes = 10,
         },
         // ------------------------------------------------------------------ TOMB RAIDER
         new HeroStats
@@ -97,12 +111,15 @@ public static class HeroConfig
             DanoTijolo = 1,
             DanoCaixa = 1,
             DanoPorta = 1,
+            DanoPonte = 1,
             EspeciaisIniciais = 3,
             VelocidadeEspecial = 300,
             RaioEspecial = 28,
             AtordoamentoEspecial = 0,
             QuantidadeEspecial = 1,
             AberturaEspecial = 0,
+            FpsCorrida = 14,
+            FpsAnimacoes = 10,
         },
         // ------------------------------------------------------------------ HOMEM-ARANHA
         new HeroStats
@@ -123,12 +140,15 @@ public static class HeroConfig
             DanoTijolo = 1,
             DanoCaixa = 1,
             DanoPorta = 1,
+            DanoPonte = 1,
             EspeciaisIniciais = 3,
             VelocidadeEspecial = 280,
             RaioEspecial = 0,
             AtordoamentoEspecial = 1.6f,
             QuantidadeEspecial = 5,
             AberturaEspecial = 55,
+            FpsCorrida = 14,
+            FpsAnimacoes = 10,
         },
     };
 

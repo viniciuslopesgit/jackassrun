@@ -16,6 +16,10 @@ public sealed class Enemy
     public float FireT, AlertT, StateT, HurtT, MuzzleT, AnimT, LandT, HitDir;
     public float StunT, FuseT = -1;      // atordoado (porta chutada / pisao); pavio do homem-bomba
     public bool OnGround, Alerted, Walking, Dead, LastBoom;
+    public bool OnLadder;                // subindo/descendo uma escada
+    public float EnterT;                 // entrando correndo pela direita (emboscada): ignora a IA ate acabar
+    public bool Para;                    // descendo de paraquedas
+    public int LadderDir, LadderCol = int.MinValue;   // -1 sobe, 1 desce; ultima coluna de escada avaliada
     public Enemy Clone() => (Enemy)MemberwiseClone();
 
     public float HalfW => Kind switch { EnemyKind.Brute => 6, EnemyKind.Turret => 7, EnemyKind.Flyer => 7, _ => 4 };
@@ -37,6 +41,7 @@ public sealed class Bullet
     public float X, Y, VX, VY, Life, W = 3, H = 2, Grav, ExplodeR, T;
     public int Dmg = 1;
     public int Char = -1;      // heroi que atirou (dano nos blocos vem do HeroConfig); -1 = usa Dmg
+    public int Spin = 1;       // sentido do giro do sprite da arma (1 horario, -1 anti-horario)
     public Bullet Clone() => (Bullet)MemberwiseClone();
 }
 
@@ -49,6 +54,24 @@ public sealed class Prop
     public float X, Y, VY, T, Fuse = -1;
     public bool Done;
     public Prop Clone() => (Prop)MemberwiseClone();
+}
+
+/// <summary>Emboscada (Metal Slug): quando o heroi passa da coluna Col, entram inimigos correndo pela
+/// direita da tela (Type 0) ou caindo de paraquedas (Type 1).</summary>
+public sealed class Ambush
+{
+    public int Col, Count, Type;
+    public EnemyKind Enemy;
+    public bool Fired;
+    public Ambush Clone() => (Ambush)MemberwiseClone();
+}
+
+/// <summary>Tabua de ponte de madeira pisada pelo heroi: cai quando T chega a zero.</summary>
+public sealed class BridgeFuse
+{
+    public int X, Y;
+    public float T;
+    public BridgeFuse Clone() => (BridgeFuse)MemberwiseClone();
 }
 
 /// <summary>Sala de um predio: fica escura ate ser revelada (porta aberta, parede destruida ou heroi dentro).
@@ -92,6 +115,8 @@ public sealed class WorldState
     public List<Explosion> Explosions = new();
     public List<FallingBlock> Falling = new();
     public List<Room> Rooms = new();
+    public List<Ambush> Ambushes = new();
+    public List<BridgeFuse> BridgeFuses = new();
 
     public WorldState Clone()
     {
@@ -102,6 +127,8 @@ public sealed class WorldState
         s.Explosions = Explosions.ConvertAll(x => x.Clone());
         s.Falling = Falling.ConvertAll(f => f.Clone());
         s.Rooms = Rooms.ConvertAll(r => r.Clone());
+        s.Ambushes = Ambushes.ConvertAll(a => a.Clone());
+        s.BridgeFuses = BridgeFuses.ConvertAll(f => f.Clone());
         return s;
     }
 }
@@ -113,6 +140,7 @@ public sealed class Player
     public float X, Y, VX, VY;
     public float FireT, InvulnT, AnimT, DashT, MuzzleT, Coyote, Recoil, LandT;
     public bool OnGround, Climbing, Dead;
+    public bool OnLadder;     // subindo/descendo uma escada
 }
 
 /// <summary>Um quadro gravado de uma vida passada (o "fantasma" do Super Time Force).</summary>
@@ -136,9 +164,11 @@ public sealed class Ghost
 /// Toda alteracao entra num log com o frame, para poder ser desfeita ao rebobinar.</summary>
 public sealed class Terrain
 {
-    public const int EMPTY = 0, DIRT = 1, BRICK = 2, STEEL = 3, CRATE = 4, BEDROCK = 5, DOOR = 6;
-    static readonly int[] MaxHp = { 0, 8, 5, 999, 3, 999, 2 };
+    public const int EMPTY = 0, DIRT = 1, BRICK = 2, STEEL = 3, CRATE = 4, BEDROCK = 5, DOOR = 6, BRIDGE = 7, LADDER = 8, CONCRETE = 9;
+    static readonly int[] MaxHp = { 0, 8, 5, 999, 3, 999, 2, 2, 3, 12 };
     public static bool Unbreakable(int type) => type == STEEL || type == BEDROCK;
+    /// <summary>Ponte e escada nao sao paredes: atravessa-se pelos lados e por baixo.</summary>
+    public static bool Passable(int type) => type == BRIDGE || type == LADDER;
 
     readonly struct Mod
     {
@@ -153,8 +183,8 @@ public sealed class Terrain
     public bool Underground(int tx, int ty) => surf.TryGetValue(tx, out var r) && ty > r;
     readonly List<Mod> log = new();
 
-    // bits: 0-3 dano | 4-5 variacao | 6-7 aparencia (0 grama, 1 terra, 2 fundo) | 8-10 tipo
-    public static int TypeOf(ushort b) => (b >> 8) & 7;
+    // bits: 0-3 dano | 4-5 variacao | 6-7 aparencia (0 grama, 1 terra, 2 fundo) | 8-11 tipo
+    public static int TypeOf(ushort b) => (b >> 8) & 15;
     public static int DmgOf(ushort b) => b & 15;
     public static int VarOf(ushort b) => (b >> 4) & 3;
     public static int LookOf(ushort b) => (b >> 6) & 3;
@@ -169,8 +199,18 @@ public sealed class Terrain
         return cols.TryGetValue(tx, out var c) ? c[ty] : (ushort)0;
     }
     public int Type(int tx, int ty) => TypeOf(Get(tx, ty));
-    public bool Solid(int tx, int ty) => TypeOf(Get(tx, ty)) != 0;
+    public bool Solid(int tx, int ty) { int t = TypeOf(Get(tx, ty)); return t != 0 && !Passable(t); }
     public bool SolidAt(float x, float y) => Solid((int)MathF.Floor(x / K.T), (int)MathF.Floor(y / K.T));
+    public bool Ladder(int tx, int ty) => Type(tx, ty) == LADDER;
+    public bool LadderAt(float x, float y) => Ladder((int)MathF.Floor(x / K.T), (int)MathF.Floor(y / K.T));
+    /// <summary>Piso de mao unica (so segura quem vem de cima): a ponte e o topo de uma escada.</summary>
+    public bool Platform(int tx, int ty) { int t = Type(tx, ty); return t == BRIDGE || t == LADDER && Type(tx, ty - 1) != LADDER; }
+    /// <summary>Da para pisar neste ponto? (bloco solido ou o topo de uma ponte/escada)</summary>
+    public bool StandAt(float x, float y)
+    {
+        int tx = (int)MathF.Floor(x / K.T), ty = (int)MathF.Floor(y / K.T);
+        return Solid(tx, ty) || Platform(tx, ty) && y - ty * K.T < 6;
+    }
 
     public void SetRaw(int tx, int ty, ushort v)
     {
