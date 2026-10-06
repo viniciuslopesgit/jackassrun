@@ -36,7 +36,7 @@ Os prisioneiros nas jaulas usam a folha do heroi correspondente.
   7 bala inimiga (pinte de branco/cinza: o jogo aplica a cor da era), 8 bomba.
 
 ## tiles/<era>.png
-Folha de 8x5 tiles de **8x8**:
+Folha de 8x5 tiles de **16x16** (o heroi tem ~1 bloco de altura, como no Broforce):
 - Linha 0: terra com grama (topo exposto), 4 variacoes
 - Linha 1: terra logo abaixo do topo, 4 variacoes
 - Linha 2: terra profunda, 4 variacoes

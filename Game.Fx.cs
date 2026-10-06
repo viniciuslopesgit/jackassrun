@@ -138,7 +138,7 @@ public sealed partial class Game
         byte b = Ter.Get(tx, ty);
         int type = Terrain.TypeOf(b);
         if (type == 0) return true;
-        float cx = tx * K.T + 4, cy = ty * K.T + 4;
+        float cx = tx * K.T + K.HT, cy = ty * K.T + K.HT;
         if (type == Terrain.STEEL)
         {
             if (dmg < 99) sfx.Play("clank", 0.5f);
@@ -157,7 +157,7 @@ public sealed partial class Game
             for (int k = 0; k < n; k++)
             {
                 var kind = boom && k == 0 && fx.Next(2) == 0 ? PKind.BurnDebris : PKind.Debris;
-                AddPart(kind, cx + R(-3, 3), cy + R(-3, 3), R(-90, 90) * (boom ? 1.8f : 1), -R(60, 190) * (boom ? 1.5f : 1),
+                AddPart(kind, cx + R(-6, 6), cy + R(-6, 6), R(-90, 90) * (boom ? 1.8f : 1), -R(60, 190) * (boom ? 1.5f : 1),
                     boom ? 1.8f : 1.2f, fx.Next(2, 4), c, 540);
             }
             if (!boom || fx.Next(2) == 0) AddPart(PKind.Smoke, cx, cy, R(-12, 12), -R(5, 25), 0.7f, 3, A(dust, 0.85f));
@@ -222,7 +222,7 @@ public sealed partial class Game
             if (f.Dead) continue;
             f.VY = MathF.Min(f.VY + K.GRAV * dt, 420);
             float ny = f.Y + f.VY * dt;
-            int tx = (int)MathF.Floor((f.X + 4) / K.T);
+            int tx = (int)MathF.Floor((f.X + K.HT) / K.T);
             int below = (int)MathF.Floor((ny + K.T) / K.T);
             if (Ter.Solid(tx, below))
             {
@@ -230,8 +230,8 @@ public sealed partial class Game
                 if (ty >= 0 && !Ter.Solid(tx, ty)) Ter.Set(S.Frame, tx, ty, f.Tile);
                 f.Dead = true;
                 var c = TileColor(Terrain.TypeOf(f.Tile), Eras.ForCol(tx));
-                for (int k = 0; k < 3; k++) AddPart(PKind.Smoke, f.X + R(0, 8), ty * K.T + 8, R(-30, 30), -R(5, 20), 0.6f, 2.5f, A(Col.Lerp(c, White, 0.35f), 0.8f));
-                AddPart(PKind.Debris, f.X + 4, ty * K.T + 6, R(-60, 60), -R(40, 100), 0.8f, 2, c, 540);
+                for (int k = 0; k < 3; k++) AddPart(PKind.Smoke, f.X + R(0, K.T), ty * K.T + K.T, R(-30, 30), -R(5, 20), 0.6f, 2.5f, A(Col.Lerp(c, White, 0.35f), 0.8f));
+                AddPart(PKind.Debris, f.X + K.HT, ty * K.T + K.T - 2, R(-60, 60), -R(40, 100), 0.8f, 2, c, 540);
                 sfx.Play("hit", 0.4f, 0.5f);
                 shake = MathF.Max(shake, 1.2f);
                 continue;
@@ -244,12 +244,12 @@ public sealed partial class Game
             {
                 if (e.Dead || e.Kind == EnemyKind.Flyer) continue;
                 var (x0, y0, x1, y1) = e.Box;
-                if (Hit(f.X, f.Y, f.X + 8, f.Y + 8, x0, y0, x1, y1)) { e.HitDir = fx.Next(2) == 0 ? -1 : 1; HitEnemy(e, 20, 0, true); }
+                if (Hit(f.X, f.Y, f.X + K.T, f.Y + K.T, x0, y0, x1, y1)) { e.HitDir = fx.Next(2) == 0 ? -1 : 1; HitEnemy(e, 20, 0, true); }
             }
             foreach (var p in S.Props)
-                if (!p.Done && p.Kind == PropKind.Barrel && p.Fuse < 0 && Hit(f.X, f.Y, f.X + 8, f.Y + 8, p.X - 4, p.Y - 10, p.X + 4, p.Y))
+                if (!p.Done && p.Kind == PropKind.Barrel && p.Fuse < 0 && Hit(f.X, f.Y, f.X + K.T, f.Y + K.T, p.X - 4, p.Y - 10, p.X + 4, p.Y))
                     p.Fuse = 0.05f;
-            if (!P.Dead && Hit(f.X, f.Y, f.X + 8, f.Y + 8, P.X - 3, P.Y - 16, P.X + 3, P.Y))
+            if (!P.Dead && Hit(f.X, f.Y, f.X + K.T, f.Y + K.T, P.X - 3, P.Y - 16, P.X + 3, P.Y))
                 KillPlayer(0, "ESMAGADO POR ESCOMBROS", true);
         }
     }
@@ -270,8 +270,8 @@ public sealed partial class Game
         for (int tx = cx - r2; tx <= cx + r2; tx++)
             for (int ty = cy - r2; ty <= cy + r2; ty++)
             {
-                float dx = tx * K.T + 4 - x, dy = ty * K.T + 4 - y;
-                if (dx * dx + dy * dy > r * r * 0.8f) continue;
+                float dx = tx * K.T + K.HT - x, dy = ty * K.T + K.HT - y;
+                if (dx * dx + dy * dy > r * r * 0.9f) continue;
                 if (Ter.Solid(tx, ty)) DamageTile(tx, ty, 99);
             }
         foreach (var e in S.Enemies)

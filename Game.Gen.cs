@@ -10,7 +10,7 @@ public sealed partial class Game
             GenChunk(S.NextChunk++);
     }
 
-    int HeightFor(int c) => c <= 0 ? 17 : 15 + (int)(Hash.H(c, (int)seed) % 4);
+    int HeightFor(int c) => c <= 0 ? 8 : 7 + (int)(Hash.H(c, (int)seed) % 3);
 
     void GenChunk(int c)
     {
@@ -61,33 +61,34 @@ public sealed partial class Game
         // primeiro chunk: area segura de aquecimento
         if (c == 0)
         {
-            for (int col = 0; col < K.CHUNK; col++) Fill(col, 17);
-            GlorbArc(14, 5, 17);
-            GlorbArc(26, 5, 17);
-            for (int i = 0; i < 4; i++) Tile(33 + i, 13, Terrain.BRICK);
-            Prop(PropKind.Barrel, 37, 17 * K.T);
+            for (int col = 0; col < K.CHUNK; col++) Fill(col, 8);
+            GlorbArc(6, 3, 8);
+            GlorbArc(12, 3, 8);
+            for (int i = 0; i < 2; i++) Tile(15 + i, 5, Terrain.BRICK);
+            Prop(PropKind.Barrel, 18, 8 * K.T);
             return;
         }
 
+        // Medidas em blocos de 16px: o heroi tem ~1 bloco de altura e pula ~2,8 blocos.
         int colI = 0;
-        while (colI < K.CHUNK - 5)
+        while (colI < K.CHUNK - 3)
         {
             int roll = r.Int(0, 100);
             if (roll < 20)
             {
                 // terreno plano com patrulha
-                int len = r.Int(4, 8);
+                int len = r.Int(2, 5);
                 for (int i = 0; i < len; i++) Fill(colI + i, h);
                 if (r.Chance(0.45f + diff * 0.35f)) Enemy(Grunt(), colI + len / 2, h * K.T);
-                if (r.Chance(0.3f)) GlorbArc(colI + 1, Math.Min(4, len - 1), h);
+                if (r.Chance(0.3f)) GlorbArc(colI, Math.Min(3, len), h);
                 colI += len;
             }
             else if (roll < 34)
             {
-                // degrau
-                int dh = r.Int(1, 4) * (r.Chance(0.5f) ? 1 : -1);
-                h = Math.Clamp(h + dh, 12, 19);
-                int len = r.Int(3, 6);
+                // degrau de 1 ou 2 blocos
+                int dh = r.Int(1, 3) * (r.Chance(0.5f) ? 1 : -1);
+                h = Math.Clamp(h + dh, 6, 9);
+                int len = r.Int(2, 4);
                 for (int i = 0; i < len; i++) Fill(colI + i, h);
                 if (r.Chance(0.35f + diff * 0.3f)) Enemy(Grunt(), colI + len - 1, h * K.T);
                 colI += len;
@@ -95,31 +96,30 @@ public sealed partial class Game
             else if (roll < 48)
             {
                 // buraco no espaco-tempo
-                int len = r.Int(2, 4 + (int)(diff * 2));
+                int len = r.Int(1, 3 + (diff > 0.5f ? 1 : 0));
                 Fill(colI, h);
                 for (int i = 1; i <= len; i++) Fill(colI + i, K.ROWS + 5);
-                if (len >= 4 && r.Chance(0.6f))
-                    for (int i = 2; i < len; i++) Tile(colI + i, h - 3, Terrain.BRICK);
+                if (len >= 2 && r.Chance(0.6f))
+                    for (int i = 1; i <= len; i++) Tile(colI + i, h - 2, Terrain.BRICK);
                 else GlorbArc(colI + 1, len, h);
-                Fill(colI + len + 1, h); Fill(colI + len + 2, h);
-                colI += len + 3;
+                Fill(colI + len + 1, h);
+                colI += len + 2;
             }
             else if (roll < 60)
             {
-                // plataforma flutuante
-                int len = 8;
+                // plataforma flutuante presa por aco
+                int len = 4;
                 for (int i = 0; i < len; i++) Fill(colI + i, h);
-                int py = h - r.Int(4, 6);
-                for (int i = 1; i < 7; i++) Tile(colI + i, py, i == 1 || i == 6 ? Terrain.STEEL : Terrain.BRICK);
-                if (r.Chance(0.55f + diff * 0.3f)) Enemy(Grunt(), colI + 4, py * K.T);
-                else GlorbArc(colI + 2, 4, py);
-                if (r.Chance(0.4f)) Enemy(EnemyKind.Soldier, colI + 6, h * K.T);
+                int py = h - 2;
+                for (int i = 0; i < 4; i++) Tile(colI + i, py, i == 0 || i == 3 ? Terrain.STEEL : Terrain.BRICK);
+                if (r.Chance(0.55f + diff * 0.3f)) Enemy(Grunt(), colI + 2, py * K.T);
+                else GlorbArc(colI, 4, py);
                 colI += len;
             }
             else if (roll < 71)
             {
                 // bunker: bloco de tijolos com teto de aco e torreta
-                int len = 7, top = h - 4;
+                int len = 4, top = h - 2;
                 Fill(colI, h);
                 for (int i = 1; i < len; i++)
                 {
@@ -127,49 +127,48 @@ public sealed partial class Game
                     for (int y = top; y < h; y++) Tile(colI + i, y, Terrain.BRICK);
                     Tile(colI + i, top - 1, Terrain.STEEL);
                 }
-                if (c >= 2 && r.Chance(0.5f + diff * 0.4f)) Enemy(EnemyKind.Turret, colI + 4, (top - 1) * K.T);
-                else Enemy(Grunt(), colI + 4, (top - 1) * K.T);
-                if (r.Chance(0.5f)) Prop(PropKind.Barrel, colI + len, h * K.T);
+                if (c >= 2 && r.Chance(0.5f + diff * 0.4f)) Enemy(EnemyKind.Turret, colI + 2, (top - 1) * K.T);
+                else Enemy(Grunt(), colI + 2, (top - 1) * K.T);
                 Fill(colI + len, h);
+                if (r.Chance(0.5f)) Prop(PropKind.Barrel, colI + len, h * K.T);
                 colI += len + 1;
             }
             else if (roll < 80)
             {
                 // barris explosivos perto de inimigos
-                int len = 7;
+                int len = 4;
                 for (int i = 0; i < len; i++) Fill(colI + i, h);
-                Prop(PropKind.Barrel, colI + 2, h * K.T);
-                if (r.Chance(0.6f)) Prop(PropKind.Barrel, colI + 3, h * K.T);
-                Enemy(Grunt(), colI + 4, h * K.T);
-                if (r.Chance(0.3f + diff * 0.4f)) Enemy(EnemyKind.Soldier, colI + 6, h * K.T);
+                Prop(PropKind.Barrel, colI + 1, h * K.T);
+                Enemy(Grunt(), colI + 2, h * K.T);
+                if (r.Chance(0.3f + diff * 0.4f)) Enemy(EnemyKind.Soldier, colI + 3, h * K.T);
                 colI += len;
             }
             else if (roll < 88)
             {
                 // pilha de caixotes
-                int len = 6;
+                int len = 3;
                 for (int i = 0; i < len; i++) Fill(colI + i, h);
-                int stack = r.Int(1, 4);
-                for (int i = 2; i < 4; i++) for (int y = 1; y <= stack; y++) Tile(colI + i, h - y, Terrain.CRATE);
-                if (r.Chance(0.5f)) Enemy(Grunt(), colI + 3, (h - stack) * K.T);
+                int stack = r.Int(1, 3);
+                for (int y = 1; y <= stack; y++) Tile(colI + 1, h - y, Terrain.CRATE);
+                if (r.Chance(0.5f)) Enemy(Grunt(), colI + 1, (h - stack) * K.T);
                 colI += len;
             }
             else if (roll < 94 && r.Chance(0.55f))
             {
                 // prisioneiro na jaula (+1 Time Out)
-                int len = 6;
+                int len = 3;
                 for (int i = 0; i < len; i++) Fill(colI + i, h);
-                Prop(PropKind.Cage, colI + 3, h * K.T);
-                if (r.Chance(0.6f)) Enemy(Grunt(), colI + 5, h * K.T);
+                Prop(PropKind.Cage, colI + 1, h * K.T);
+                if (r.Chance(0.6f)) Enemy(Grunt(), colI + 2, h * K.T);
                 colI += len;
             }
             else
             {
                 // torre de tijolos com sentinela
-                int len = 5, th = r.Int(3, 6);
+                int len = 3, th = r.Int(2, 4);
                 for (int i = 0; i < len; i++) Fill(colI + i, h);
-                for (int i = 1; i < 3; i++) for (int y = 1; y <= th; y++) Tile(colI + i, h - y, Terrain.BRICK);
-                Enemy(Grunt(), colI + 2, (h - th) * K.T);
+                for (int y = 1; y <= th; y++) Tile(colI + 1, h - y, Terrain.BRICK);
+                Enemy(Grunt(), colI + 1, (h - th) * K.T);
                 colI += len;
             }
         }
@@ -179,6 +178,6 @@ public sealed partial class Game
         // voadores
         int flyers = r.Chance(0.25f + diff * 0.6f) ? 1 + (r.Chance(diff * 0.5f) ? 1 : 0) : 0;
         if (c < 2) flyers = 0;
-        for (int i = 0; i < flyers; i++) Enemy(EnemyKind.Flyer, r.Int(8, K.CHUNK - 4), r.Range(28, 70));
+        for (int i = 0; i < flyers; i++) Enemy(EnemyKind.Flyer, r.Int(4, K.CHUNK - 2), r.Range(28, 70));
     }
 }

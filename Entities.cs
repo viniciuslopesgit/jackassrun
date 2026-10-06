@@ -118,7 +118,7 @@ public sealed class Ghost
 public sealed class Terrain
 {
     public const int EMPTY = 0, DIRT = 1, BRICK = 2, STEEL = 3, CRATE = 4;
-    static readonly int[] MaxHp = { 0, 5, 3, 999, 2 };
+    static readonly int[] MaxHp = { 0, 8, 5, 999, 3 };
 
     readonly struct Mod
     {

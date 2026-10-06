@@ -67,7 +67,7 @@ public static class DesignExport
                 Turret(12, 15, 1, era, 0f, 0, null); Turret(44, 15, 1, era, 0.3f, 0, null);
                 Turret(76, 15, 1, era, 0f, 2, null); Turret(108, 15, 1, era, 0.3f, 2, null);
             });
-            Need(TilesPath(root, e), 64, 40, () => Tiles(era, e));
+            Need(TilesPath(root, e), 8 * K.T, 5 * K.T, () => Tiles(era, e));
             Need(BgPath(root, e, "ceu"), K.W, K.H, () => Sky(era));
             Need(BgPath(root, e, "fundo"), BgLoop, K.H, () => FarLayer(era));
             Need(BgPath(root, e, "meio"), BgLoop, K.H, () => MidLayer(era));
@@ -189,82 +189,129 @@ public static class DesignExport
 
     // ------------------------------------------------------------------ tiles
 
-    /// <summary>Folha 8x5 de tiles 8x8 (ver LEIAME).</summary>
+    /// <summary>Folha 8x5 de tiles 16x16 (ver LEIAME).</summary>
     static void Tiles(Era e, int eraIdx)
     {
+        const int T = K.T;
         for (int v = 0; v < 4; v++)
             for (int depth = 0; depth < 3; depth++)
-                Dirt(v * 8, depth * 8, e, depth, Hash.H(v * 13 + 5, depth + 3));
-        Brick(0, 24, e, 0); Brick(8, 24, e, 1);
-        Steel(16, 24, e); Crate(24, 24);
-        for (int d = 1; d <= 3; d++) Cracks(24 + d * 8, 24, d);
-        if (e.Style != BgStyle.Future)
-            for (int sway = 0; sway < 2; sway++)
-            {
-                int bx = sway * 8, by = 32;
-                Rect(bx + 2 + sway, by + 5, 1, 2, e.TopLight); Rect(bx + 2, by + 7, 1, 1, e.Top);
-                bx = 16 + sway * 8;
-                Rect(bx + 5 + sway, by + 6, 1, 1, e.TopLight); Rect(bx + 5, by + 7, 2, 1, e.Top);
-                bx = 32 + sway * 8;
-                var flower = e.Style switch { BgStyle.Jungle => Red, BgStyle.Dino => Orange, _ => Magenta };
-                Rect(bx + 4, by + 5, 1, 3, e.Top);
-                Rect(bx + 3 + sway, by + 3, 3, 2, flower);
-                Rect(bx + 4 + sway, by + 3, 1, 1, Yellow);
-            }
+                Dirt(v * T, depth * T, e, depth, v);
+        Brick(0, 3 * T, e, 0); Brick(T, 3 * T, e, 1);
+        Steel(2 * T, 3 * T, e); Crate(3 * T, 3 * T);
+        for (int d = 1; d <= 3; d++) Cracks((3 + d) * T, 3 * T, d);
+        if (e.Style == BgStyle.Future) return;
+        var flower = e.Style switch { BgStyle.Jungle => Red, BgStyle.Dino => Orange, _ => Magenta };
+        for (int sway = 0; sway < 2; sway++)
+        {
+            int by = 4 * T;       // enfeites: a base da celula encosta no topo do bloco
+            // tufo A: tres folhas
+            int bx = sway * T;
+            Rect(bx + 4 + sway, by + 10, 1, 4, e.TopLight); Rect(bx + 4, by + 14, 1, 2, e.Top);
+            Rect(bx + 6, by + 11, 1, 5, e.Top); Rect(bx + 6 + sway, by + 11, 1, 1, e.TopLight);
+            Rect(bx + 8 + sway, by + 12, 1, 3, e.TopLight); Rect(bx + 8, by + 15, 1, 1, e.Top);
+            // tufo B: capim baixo
+            bx = 2 * T + sway * T;
+            Rect(bx + 9 + sway, by + 13, 1, 2, e.TopLight); Rect(bx + 10, by + 14, 2, 2, e.Top);
+            Rect(bx + 12 + sway, by + 12, 1, 3, e.TopLight);
+            // flor
+            bx = 4 * T + sway * T;
+            Rect(bx + 7, by + 10, 1, 6, e.Top); Rect(bx + 8, by + 13, 2, 1, e.Top);
+            Rect(bx + 6 + sway, by + 7, 3, 3, flower); Rect(bx + 7 + sway, by + 6, 1, 5, flower);
+            Rect(bx + 5 + sway, by + 8, 5, 1, flower);
+            Rect(bx + 7 + sway, by + 8, 1, 1, Yellow);
+        }
     }
 
-    static void Dirt(int x, int y, Era e, int depth, uint hsh)
+    static void Dirt(int x, int y, Era e, int depth, int variant)
     {
+        const int T = K.T;
         var c = depth == 0 ? e.Dirt : depth == 1 ? Col.Lerp(e.Dirt, e.DirtDark, 0.45f) : e.DirtDark;
-        Rect(x, y, 8, 8, c);
-        var dark = Mul(c, 0.78f);
-        Rect(x + (int)(hsh % 6), y + 2 + (int)(hsh >> 4) % 5, 2, 1, dark);
-        Rect(x + (int)(hsh >> 8) % 7, y + (int)(hsh >> 12) % 7, 1, 1, Mul(c, 1.15f));
-        if (depth == 2) Rect(x + 2, y + 3, 3, 2, Mul(c, 0.85f));
+        var dark = Mul(c, 0.8f); var light = Mul(c, 1.14f);
+        Rect(x, y, T, T, c);
+        // pedrinhas e textura
+        for (int i = 0; i < 7; i++)
+        {
+            uint h = Hash.H(variant * 31 + i, depth * 7 + 3);
+            int px = (int)(h % 14), py = (int)((h >> 5) % 14);
+            Rect(x + px, y + py, 2, 1, dark);
+            if (i % 2 == 0) Rect(x + px, y + py - 1, 1, 1, light);
+        }
+        if (depth >= 1)
+        {
+            uint h = Hash.H(variant, depth + 40);
+            int px = 2 + (int)(h % 9), py = 4 + (int)((h >> 4) % 7);
+            Rect(x + px, y + py, 4, 3, Mul(c, depth == 2 ? 0.86f : 1.1f));
+            Rect(x + px, y + py, 4, 1, Mul(c, depth == 2 ? 1.0f : 1.22f));
+        }
         if (depth == 0)
         {
-            Rect(x, y, 8, 3, e.Top);
-            Rect(x, y, 8, 1, e.TopLight);
-            Rect(x + (int)(hsh % 7), y + 3, 1, 1 + (int)((hsh >> 3) % 2), e.Top);
-            Rect(x + (int)((hsh >> 5) % 7), y + 3, 1, 1, e.Top);
+            // grama: faixa no topo com fios pendurados
+            Rect(x, y, T, 5, e.Top);
+            Rect(x, y, T, 1, e.TopLight);
+            Rect(x, y + 1, T, 1, Col.Lerp(e.Top, e.TopLight, 0.4f));
+            for (int i = 0; i < T; i++)
+            {
+                uint h = Hash.H(i + variant * 17, 9);
+                int len = (int)(h % 4);
+                if (len > 0) Rect(x + i, y + 5, 1, len, len > 2 ? Mul(e.Top, 0.85f) : e.Top);
+            }
+            Rect(x, y + 5, T, 1, A(Mul(c, 0.7f), 0.5f));
         }
     }
 
     static void Brick(int x, int y, Era e, int odd)
     {
-        Rect(x, y, 8, 8, e.Brick);
-        Rect(x, y + 3, 8, 1, e.BrickDark);
-        Rect(x, y + 7, 8, 1, e.BrickDark);
-        Rect(x + (odd == 0 ? 3 : 7), y, 1, 3, e.BrickDark);
-        Rect(x + (odd == 0 ? 6 : 2), y + 4, 1, 3, e.BrickDark);
-        Rect(x, y, 8, 1, Mul(e.Brick, 1.2f));
-        Rect(x, y + 4, 8, 1, Mul(e.Brick, 1.1f));
+        const int T = K.T;
+        var mortar = e.BrickDark;
+        Rect(x, y, T, T, mortar);
+        for (int row = 0; row < 4; row++)
+        {
+            int off = ((row + odd) % 2) * 4;
+            for (int bx = -off; bx < T; bx += 8)
+            {
+                int x0 = Math.Max(0, bx), x1 = Math.Min(T, bx + 7);
+                if (x1 <= x0) continue;
+                var bc = Mul(e.Brick, 0.92f + 0.16f * Hash.F(bx + row * 7 + odd * 3, 77));
+                Rect(x + x0, y + row * 4, x1 - x0, 3, bc);
+                Rect(x + x0, y + row * 4, x1 - x0, 1, Mul(bc, 1.18f));
+            }
+        }
     }
 
     static void Steel(int x, int y, Era e)
     {
-        Rect(x, y, 8, 8, e.SteelDark);
-        Rect(x + 1, y + 1, 6, 6, e.Steel);
-        Rect(x + 1, y + 1, 6, 1, Mul(e.Steel, 1.25f));
-        Rect(x + 2, y + 2, 1, 1, Mul(e.Steel, 1.4f));
-        Rect(x + 1, y + 1, 1, 1, e.SteelDark); Rect(x + 6, y + 1, 1, 1, e.SteelDark);
-        Rect(x + 1, y + 6, 1, 1, e.SteelDark); Rect(x + 6, y + 6, 1, 1, e.SteelDark);
+        const int T = K.T;
+        Rect(x, y, T, T, e.SteelDark);
+        Rect(x + 1, y + 1, T - 2, T - 2, e.Steel);
+        Rect(x + 1, y + 1, T - 2, 1, Mul(e.Steel, 1.25f));
+        Rect(x + 1, y + 1, 1, T - 2, Mul(e.Steel, 1.12f));
+        // brilho diagonal
+        for (int i = 0; i < 5; i++) Rect(x + 4 + i, y + 9 - i, 1, 1, Mul(e.Steel, 1.3f));
+        // rebites nos cantos
+        foreach (var (rx, ry) in new[] { (2, 2), (12, 2), (2, 12), (12, 12) })
+        {
+            Rect(x + rx, y + ry, 2, 2, Mul(e.Steel, 1.35f));
+            Rect(x + rx + 1, y + ry + 1, 1, 1, e.SteelDark);
+        }
     }
 
     static void Crate(int x, int y)
     {
-        Rect(x, y, 8, 8, Hex(0x6a4420));
-        Rect(x + 1, y + 1, 6, 6, Hex(0xb07a3a));
-        for (int i = 1; i < 7; i++) Rect(x + i, y + i, 1, 1, Hex(0x6a4420));
-        Rect(x + 1, y + 1, 6, 1, Hex(0xd09a5a));
+        const int T = K.T;
+        var wood = Hex(0xb07a3a); var dark = Hex(0x7a4e22); var light = Hex(0xd09a5a);
+        Rect(x, y, T, T, dark);
+        Rect(x + 2, y + 2, T - 4, T - 4, wood);
+        for (int i = 0; i < 3; i++) Rect(x + 2, y + 5 + i * 4, T - 4, 1, Mul(wood, 0.85f));     // tabuas
+        for (int i = 0; i < T - 4; i++) Rect(x + 2 + i, y + 2 + i, 2, 1, dark);              // travessa diagonal
+        Rect(x, y, T, 1, light); Rect(x, y, 1, T, Mul(light, 0.9f));
     }
 
     static void Cracks(int x, int y, int dmg)
     {
-        var c = A(Hex(0x000000), 0.6f);   // fica como uma sombra da cor do proprio tile
-        Rect(x + 3, y + 2, 1, 3, c);
-        if (dmg > 1) { Rect(x + 4, y + 4, 2, 1, c); Rect(x + 1, y + 5, 2, 1, c); }
-        if (dmg > 2) { Rect(x + 5, y + 1, 1, 2, c); Rect(x + 2, y + 1, 1, 1, c); }
+        var c = A(Hex(0x000000), 0.55f);   // fica como uma sombra da cor do proprio tile
+        Rect(x + 7, y + 3, 1, 4, c); Rect(x + 8, y + 7, 1, 3, c);
+        if (dmg > 1) { Rect(x + 9, y + 9, 3, 1, c); Rect(x + 3, y + 10, 3, 1, c); Rect(x + 6, y + 9, 1, 1, c); }
+        if (dmg > 2) { Rect(x + 11, y + 2, 1, 3, c); Rect(x + 12, y + 5, 2, 1, c); Rect(x + 2, y + 4, 2, 1, c); Rect(x + 4, y + 13, 1, 2, c); }
     }
 
     // ------------------------------------------------------------------ cenarios
@@ -416,7 +463,7 @@ Os prisioneiros nas jaulas usam a folha do heroi correspondente.
   7 bala inimiga (pinte de branco/cinza: o jogo aplica a cor da era), 8 bomba.
 
 ## tiles/<era>.png
-Folha de 8x5 tiles de **8x8**:
+Folha de 8x5 tiles de **16x16** (o heroi tem ~1 bloco de altura, como no Broforce):
 - Linha 0: terra com grama (topo exposto), 4 variacoes
 - Linha 1: terra logo abaixo do topo, 4 variacoes
 - Linha 2: terra profunda, 4 variacoes

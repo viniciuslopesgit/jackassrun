@@ -184,7 +184,7 @@ public sealed partial class Game
         {
             int tx = start + k;
             int sy = Ter.Surface(tx);
-            if (sy > 3 && !Ter.Solid(tx, sy - 1) && !Ter.Solid(tx, sy - 2) && !Ter.Solid(tx, sy - 3))
+            if (sy > 2 && !Ter.Solid(tx, sy - 1) && !Ter.Solid(tx, sy - 2))
             { x = tx * K.T + K.T / 2f; y = sy * K.T; break; }
         }
         P = new Player { Char = ch, X = x, Y = y, InvulnT = 2f, Specials = 3 };
@@ -268,7 +268,7 @@ public sealed partial class Game
         mode = Mode.GameOver; modeT = 0;
     }
 
-    int Meters => (int)(S.CamX / K.T);
+    int Meters => (int)(S.CamX / K.PX_PER_M);
     int FinalScore() => S.Score + Meters * 10;
 
     static string BestPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "JackassRun", "best.txt");

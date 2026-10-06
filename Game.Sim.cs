@@ -23,7 +23,7 @@ public sealed partial class Game
 
         hist.Add(S.Clone());
         if (hist.Count > K.HISTORY) hist.RemoveAt(0);
-        Ter.Trim(hist[0].Frame, (int)(hist[0].CamX / K.T) - 80);
+        Ter.Trim(hist[0].Frame, (int)(hist[0].CamX / K.T) - 40);
     }
 
     void UpdateCamera()
@@ -273,13 +273,13 @@ public sealed partial class Game
             case BulletKind.Bullet: b.W = 5; b.H = 2; b.Life = 0.7f; b.Dmg = 1; break;
             case BulletKind.Pellet: b.W = 3; b.H = 3; b.Life = 0.22f; b.Dmg = 1; break;
             case BulletKind.Laser: b.W = 14; b.H = 3; b.Life = 0.5f; b.Dmg = 2; b.Pierce = true; break;
-            case BulletKind.Rocket: b.W = 6; b.H = 4; b.Life = 1.6f; b.Dmg = 3; b.ExplodeR = 22; break;
-            case BulletKind.Grenade: b.W = 4; b.H = 4; b.Life = 1.3f; b.Dmg = 0; b.Grav = 520; b.ExplodeR = 26; break;
-            case BulletKind.Dynamite: b.W = 4; b.H = 6; b.Life = 1.1f; b.Dmg = 0; b.Grav = 520; b.ExplodeR = 40; break;
+            case BulletKind.Rocket: b.W = 6; b.H = 4; b.Life = 1.6f; b.Dmg = 3; b.ExplodeR = 26; break;
+            case BulletKind.Grenade: b.W = 4; b.H = 4; b.Life = 1.3f; b.Dmg = 0; b.Grav = 520; b.ExplodeR = 30; break;
+            case BulletKind.Dynamite: b.W = 4; b.H = 6; b.Life = 1.1f; b.Dmg = 0; b.Grav = 520; b.ExplodeR = 46; break;
             case BulletKind.Slash: b.W = 22; b.H = 20; b.Life = 0.1f; b.Dmg = 3; b.Pierce = true; break;
             case BulletKind.EBullet: b.W = 4; b.H = 4; b.Life = 2.5f; b.Dmg = 1; break;
-            case BulletKind.ERocket: b.W = 6; b.H = 4; b.Life = 3f; b.Dmg = 1; b.ExplodeR = 18; break;
-            case BulletKind.EBomb: b.W = 5; b.H = 5; b.Life = 3f; b.Dmg = 1; b.Grav = 300; b.ExplodeR = 18; break;
+            case BulletKind.ERocket: b.W = 6; b.H = 4; b.Life = 3f; b.Dmg = 1; b.ExplodeR = 22; break;
+            case BulletKind.EBomb: b.W = 5; b.H = 5; b.Life = 3f; b.Dmg = 1; b.Grav = 300; b.ExplodeR = 22; break;
         }
         S.Bullets.Add(b);
         return b;
@@ -348,7 +348,7 @@ public sealed partial class Game
                 flash = MathF.Max(flash, 0.3f);
                 break;
             case 3:
-                Explode(x, y + 2, 20, true, K.PLAYER_ID);
+                Explode(x, y + 2, 24, true, K.PLAYER_ID);
                 break;
             case 4:
                 var b = AddBullet(BulletKind.Slash, x + f * 34, y - 10, 0, 0, true, K.PLAYER_ID, ghost);
@@ -545,7 +545,7 @@ public sealed partial class Game
                     if (p.Fuse >= 0)
                     {
                         p.Fuse -= dt;
-                        if (p.Fuse < 0) { p.Done = true; Explode(p.X, p.Y - 5, 30, false, -p.Id); }
+                        if (p.Fuse < 0) { p.Done = true; Explode(p.X, p.Y - 5, 36, false, -p.Id); }
                     }
                     else
                     {
@@ -722,7 +722,7 @@ public sealed partial class Game
         }
         // corta tiles na frente
         int tx0 = (int)MathF.Floor(bx0 / K.T), tx1 = (int)MathF.Floor(bx1 / K.T);
-        int ty0 = (int)MathF.Floor(by0 / K.T), ty1 = (int)MathF.Floor((by1 - 4) / K.T);
+        int ty0 = (int)MathF.Floor(by0 / K.T), ty1 = (int)MathF.Floor((by1 - 2) / K.T);
         if (b.T <= K.DT * 1.5f)
             for (int tx = tx0; tx <= tx1; tx++) for (int ty = ty0; ty <= ty1; ty++)
                 if (Ter.Solid(tx, ty)) DamageTile(tx, ty, 1);

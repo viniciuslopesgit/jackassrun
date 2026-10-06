@@ -6,9 +6,11 @@ namespace JackassRun;
 public static class K
 {
     public const int W = 320, H = 180;          // resolucao interna (pixel art), escalada na janela
-    public const int T = 8;                     // tamanho do tile
-    public const int ROWS = 23;                 // linhas de tiles do mundo
-    public const int CHUNK = 40;                // colunas por chunk gerado
+    public const int T = 16;                    // tamanho do bloco (heroi ~ ate o ombro, como no Broforce)
+    public const int HT = T / 2;
+    public const int ROWS = 12;                 // linhas de blocos do mundo
+    public const int CHUNK = 20;                // colunas por chunk gerado (320 px)
+    public const int PX_PER_M = 8;              // pixels por metro no placar
     public const int CHUNKS_PER_ERA = 5;        // chunks ate trocar de era
     public const int HISTORY = 600;             // frames de historico para rebobinar (10s)
     public const float DT = 1f / 60f;

@@ -156,10 +156,14 @@ public sealed partial class Game
             Terrain.STEEL => (2, 3),
             _ => (3, 3),
         };
-        Raylib.DrawTextureRec(tex, new Rectangle(col * 8, row * 8, 8, 8), new Vector2(x, y), Color.White);
-        if (dmg > 0) Raylib.DrawTextureRec(tex, new Rectangle((3 + Math.Min(dmg, 3)) * 8, 24, 8, 8), new Vector2(x, y), Color.White);
+        Raylib.DrawTextureRec(tex, new Rectangle(col * K.T, row * K.T, K.T, K.T), new Vector2(x, y), Color.White);
+        if (dmg > 0)
+        {
+            int stage = Math.Clamp((dmg * 3 + Terrain.HpOf(type) - 1) / Terrain.HpOf(type), 1, 3);   // 1..3 conforme o dano
+            Raylib.DrawTextureRec(tex, new Rectangle((3 + stage) * K.T, 3 * K.T, K.T, K.T), new Vector2(x, y), Color.White);
+        }
         // sem contornos: so uma leve sombra embaixo de blocos suspensos
-        if (dnE) Rect(x, y + 7, 8, 1, A(Ink, 0.18f));
+        if (dnE) Rect(x, y + K.T - 1, K.T, 1, A(Ink, 0.18f));
         if (upE && type == Terrain.DIRT)
         {
             if (decor)
@@ -174,7 +178,7 @@ public sealed partial class Game
     }
 
     static void Decor(Texture2D tex, int col, int x, int y) =>
-        Raylib.DrawTextureRec(tex, new Rectangle(col * 8, 32, 8, 8), new Vector2(x, y - 8), Color.White);
+        Raylib.DrawTextureRec(tex, new Rectangle(col * K.T, 4 * K.T, K.T, K.T), new Vector2(x, y - K.T), Color.White);
 
     void DrawDecals()
     {
@@ -191,7 +195,7 @@ public sealed partial class Game
         foreach (var f in S.Falling)
         {
             if (f.Dead) continue;
-            int tx = (int)MathF.Floor((f.X + 4) / K.T);
+            int tx = (int)MathF.Floor((f.X + K.HT) / K.T);
             TileAt(SX(f.X), SY(f.Y), tx, 3, Terrain.TypeOf(f.Tile), Terrain.DmgOf(f.Tile), Eras.IndexForCol(tx), true, true, true, true, 1, false);
         }
     }
