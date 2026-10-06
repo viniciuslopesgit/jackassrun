@@ -18,7 +18,7 @@ public sealed partial class Game
         r.Next();
         int baseCol = c * K.CHUNK;
         int h = HeightFor(c), endH = HeightFor(c + 1);
-        float diff = MathF.Min(1f, c / 16f);
+        float diff = MathF.Min(1f, c / 26f);   // dificuldade sobe mais devagar
         int k = 0;
         int Id() => c * 1000 + (k++);
 
@@ -26,9 +26,9 @@ public sealed partial class Game
         {
             int tx = baseCol + col;
             for (int y = 0; y < K.ROWS; y++)
-                Ter.SetRaw(tx, y, y >= height ? Terrain.Make(type) : (byte)0);
+                Ter.SetRaw(tx, y, y >= height ? Terrain.Make(type, 0, (int)Hash.H(tx, y), Math.Min(2, y - height)) : (ushort)0);
         }
-        void Tile(int col, int row, int type) => Ter.SetRaw(baseCol + col, row, Terrain.Make(type));
+        void Tile(int col, int row, int type) => Ter.SetRaw(baseCol + col, row, Terrain.Make(type, 0, (int)Hash.H(baseCol + col, row)));
         float X(int col) => (baseCol + col) * K.T + K.T / 2f;
 
         void Enemy(EnemyKind kind, int col, float y)
@@ -79,7 +79,7 @@ public sealed partial class Game
                 // terreno plano com patrulha
                 int len = r.Int(2, 5);
                 for (int i = 0; i < len; i++) Fill(colI + i, h);
-                if (r.Chance(0.45f + diff * 0.35f)) Enemy(Grunt(), colI + len / 2, h * K.T);
+                if (r.Chance(0.25f + diff * 0.25f)) Enemy(Grunt(), colI + len / 2, h * K.T);
                 if (r.Chance(0.3f)) GlorbArc(colI, Math.Min(3, len), h);
                 colI += len;
             }
@@ -90,7 +90,7 @@ public sealed partial class Game
                 h = Math.Clamp(h + dh, 6, 9);
                 int len = r.Int(2, 4);
                 for (int i = 0; i < len; i++) Fill(colI + i, h);
-                if (r.Chance(0.35f + diff * 0.3f)) Enemy(Grunt(), colI + len - 1, h * K.T);
+                if (r.Chance(0.18f + diff * 0.25f)) Enemy(Grunt(), colI + len - 1, h * K.T);
                 colI += len;
             }
             else if (roll < 48)
@@ -112,7 +112,7 @@ public sealed partial class Game
                 for (int i = 0; i < len; i++) Fill(colI + i, h);
                 int py = h - 2;
                 for (int i = 0; i < 4; i++) Tile(colI + i, py, i == 0 || i == 3 ? Terrain.STEEL : Terrain.BRICK);
-                if (r.Chance(0.55f + diff * 0.3f)) Enemy(Grunt(), colI + 2, py * K.T);
+                if (r.Chance(0.4f + diff * 0.3f)) Enemy(Grunt(), colI + 2, py * K.T);
                 else GlorbArc(colI, 4, py);
                 colI += len;
             }
@@ -140,7 +140,7 @@ public sealed partial class Game
                 for (int i = 0; i < len; i++) Fill(colI + i, h);
                 Prop(PropKind.Barrel, colI + 1, h * K.T);
                 Enemy(Grunt(), colI + 2, h * K.T);
-                if (r.Chance(0.3f + diff * 0.4f)) Enemy(EnemyKind.Soldier, colI + 3, h * K.T);
+                if (r.Chance(0.15f + diff * 0.35f)) Enemy(EnemyKind.Soldier, colI + 3, h * K.T);
                 colI += len;
             }
             else if (roll < 88)
@@ -159,7 +159,7 @@ public sealed partial class Game
                 int len = 3;
                 for (int i = 0; i < len; i++) Fill(colI + i, h);
                 Prop(PropKind.Cage, colI + 1, h * K.T);
-                if (r.Chance(0.6f)) Enemy(Grunt(), colI + 2, h * K.T);
+                if (r.Chance(0.4f)) Enemy(Grunt(), colI + 2, h * K.T);
                 colI += len;
             }
             else

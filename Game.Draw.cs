@@ -29,14 +29,6 @@ public sealed partial class Game
         Raylib.BeginBlendMode(BlendMode.CustomSeparate);
     }
 
-    /// <summary>Mistura aditiva para brilhos (soma cor, nao mexe no alpha).</summary>
-    static void BlendGlow()
-    {
-        Raylib.EndBlendMode();
-        Rlgl.SetBlendFactorsSeparate(GL_SRC_ALPHA, GL_ONE, GL_ZERO, GL_ONE, GL_ADD, GL_ADD);
-        Raylib.BeginBlendMode(BlendMode.CustomSeparate);
-    }
-
     void Compose(RenderTexture2D worldRT)
     {
         // mundo -> textura
@@ -92,16 +84,13 @@ public sealed partial class Game
         DrawCorpses();
         DrawTrails();
         DrawGhosts();
-        DrawPlayer();
         DrawBullets();
         foreach (var e in S.Explosions) DrawExplosion(e);
         DrawParticles(true);
         DrawParticles(false);
 
-        BlendGlow();
-        DrawGlows();
-        BlendPremulStore();
-
+        // o heroi fica na camada da frente: explosoes, fumaca e fogo passam por tras dele
+        DrawPlayer();
         DrawTexts();
         if (S.FreezeT > 0 && mode != Mode.Rewind)
             Rect(0, 0, K.W + 1, K.H, A(Cyan, 0.10f + 0.04f * MathF.Sin(time * 10)));
@@ -117,10 +106,10 @@ public sealed partial class Game
             var e = Eras.ForCol(tx);
             for (int ty = 0; ty < K.ROWS; ty++)
             {
-                byte b = Ter.Get(tx, ty);
+                ushort b = Ter.Get(tx, ty);
                 int type = Terrain.TypeOf(b);
                 if (type == 0) continue;
-                DrawTile(tx, ty, type, Terrain.DmgOf(b), e);
+                DrawTile(tx, ty, type, Terrain.DmgOf(b), Terrain.VarOf(b), Terrain.LookOf(b), e);
             }
             // fenda temporal entre eras
             if (tx % (K.CHUNK * K.CHUNKS_PER_ERA) == 0 && tx > 0)
@@ -136,23 +125,23 @@ public sealed partial class Game
         }
     }
 
-    void DrawTile(int tx, int ty, int type, int dmg, Era e)
+    /// <summary>A aparencia vem do proprio bloco (decidida ao gerar): nunca muda por causa dos vizinhos.
+    /// Os vizinhos so decidem se os enfeites de grama aparecem (nao ha nada em cima).</summary>
+    void DrawTile(int tx, int ty, int type, int dmg, int variant, int look, Era e)
     {
-        bool upE = !Ter.Solid(tx, ty - 1), dnE = !Ter.Solid(tx, ty + 1) && ty < K.ROWS - 1;
-        bool lE = !Ter.Solid(tx - 1, ty), rE = !Ter.Solid(tx + 1, ty);
-        int depth = upE ? 0 : !Ter.Solid(tx, ty - 2) ? 1 : 2;
-        TileAt(tx * K.T - cam, ty * K.T + shY, tx, ty, type, dmg, Eras.IndexForCol(tx), upE, dnE, lE, rE, depth, true);
+        bool open = !Ter.Solid(tx, ty - 1);
+        TileAt(tx * K.T - cam, ty * K.T + shY, tx, ty, type, dmg, variant, Eras.IndexForCol(tx), open, look, true);
     }
 
     /// <summary>Desenha um tile a partir de design/tiles/&lt;era&gt;.png (ver LEIAME na pasta design).</summary>
-    void TileAt(int x, int y, int tx, int ty, int type, int dmg, int era, bool upE, bool dnE, bool lE, bool rE, int depth, bool decor)
+    void TileAt(int x, int y, int tx, int ty, int type, int dmg, int variant, int era, bool upE, int depth, bool decor)
     {
         var tex = Art.Tiles[era];
         uint hsh = Hash.H(tx, ty);
         (int col, int row) = type switch
         {
-            Terrain.DIRT => ((int)(hsh % 4), depth),
-            Terrain.BRICK => (ty & 1, 3),
+            Terrain.DIRT => (variant, depth),
+            Terrain.BRICK => (variant & 1, 3),
             Terrain.STEEL => (2, 3),
             _ => (3, 3),
         };
@@ -162,9 +151,7 @@ public sealed partial class Game
             int stage = Math.Clamp((dmg * 3 + Terrain.HpOf(type) - 1) / Terrain.HpOf(type), 1, 3);   // 1..3 conforme o dano
             Raylib.DrawTextureRec(tex, new Rectangle((3 + stage) * K.T, 3 * K.T, K.T, K.T), new Vector2(x, y), Color.White);
         }
-        // sem contornos: so uma leve sombra embaixo de blocos suspensos
-        if (dnE) Rect(x, y + K.T - 1, K.T, 1, A(Ink, 0.18f));
-        if (upE && type == Terrain.DIRT)
+        if (upE && type == Terrain.DIRT && depth == 0)
         {
             if (decor)
             {
@@ -196,7 +183,7 @@ public sealed partial class Game
         {
             if (f.Dead) continue;
             int tx = (int)MathF.Floor((f.X + K.HT) / K.T);
-            TileAt(SX(f.X), SY(f.Y), tx, 3, Terrain.TypeOf(f.Tile), Terrain.DmgOf(f.Tile), Eras.IndexForCol(tx), true, true, true, true, 1, false);
+            TileAt(SX(f.X), SY(f.Y), tx, 3, Terrain.TypeOf(f.Tile), Terrain.DmgOf(f.Tile), Terrain.VarOf(f.Tile), Eras.IndexForCol(tx), false, Terrain.LookOf(f.Tile), false);
         }
     }
 
@@ -266,11 +253,6 @@ public sealed partial class Game
                     break;
                 }
             }
-            if (e.MuzzleT > 0 && e.Kind != EnemyKind.Flyer)
-            {
-                int gy = e.Kind == EnemyKind.Turret ? y - 8 : y + (e.Kind == EnemyKind.Rocketeer ? -11 : -7);
-                MuzzleStar(x + e.Facing * (e.Kind == EnemyKind.Turret ? 12 : e.Kind == EnemyKind.Brute ? 13 : 10), gy, e.Facing, 3, (int)(time * 30), Yellow);
-            }
             if (e.AlertT > 0)
             {
                 float k = 1 - e.AlertT / 0.5f;
@@ -334,7 +316,6 @@ public sealed partial class Game
             var an = Anim.FromPhysics(f.OnGround, f.Climbing, f.VX, f.VY, S.Frame * K.DT);
             an.Recoil = f.Fire ? 2 : 0;
             Art.Human(Art.Heroes[g.Char], x, y, f.Facing, an, a);
-            if (f.Fire && g.Char != 4) { var gg = Sprites.GunOf(look); MuzzleStar(x + f.Facing * gg.MuzzleX, y + gg.MuzzleY, f.Facing, 3, S.Frame, A(Yellow, 0.7f)); }
             int left = g.Frames.Count - idx;
             if (g.Died && left < 120 && !g.Resolved && (int)(time * 8) % 2 == 0)
                 TextC("!", x, y - 36, 10, Red);
@@ -351,12 +332,6 @@ public sealed partial class Game
         var an = Anim.FromPhysics(p.OnGround, p.Climbing, p.VX, p.VY, p.AnimT, p.LandT, p.DashT > 0);
         an.Recoil = p.Recoil;
         Art.Human(Art.Heroes[p.Char], x, y, p.Facing, an);
-        if (p.MuzzleT > 0 && p.Char != 4)
-        {
-            var gun = Sprites.GunOf(ch.Look);
-            int mx = x + p.Facing * gun.MuzzleX, my = y + gun.MuzzleY;
-            MuzzleStar(mx, my, p.Facing, p.Char == 1 || p.Char == 3 ? 5 : 3, S.Frame, Yellow);
-        }
         if (p.Shield > 0)
         {
             int r = 14 + (int)MathF.Round(MathF.Sin(time * 8));
@@ -525,50 +500,6 @@ public sealed partial class Game
         }
     }
 
-    void DrawGlows()
-    {
-        foreach (var b in S.Bullets)
-        {
-            if (b.Dead) continue;
-            float x = SX(b.X), y = SY(b.Y);
-            switch (b.Kind)
-            {
-                case BulletKind.Bullet: case BulletKind.Pellet: Glow(x, y, 7, Yellow, 0.35f); break;
-                case BulletKind.Laser: Glow(x - 6, y, 12, Cyan, 0.5f); Glow(x + 6, y, 12, Cyan, 0.5f); break;
-                case BulletKind.Rocket: case BulletKind.ERocket: Glow(x - MathF.Sign(b.VX) * 5, y, 11, Orange, 0.55f); break;
-                case BulletKind.EBullet: Glow(x, y, 8, b.FromPlayer ? Yellow : Eras.ForX(b.X).EBullet, 0.5f); break;
-                case BulletKind.Dynamite: Glow(x, y - 5, 6, Yellow, 0.5f); break;
-                case BulletKind.Slash: Glow(x, y, b.W * 0.6f, White, 0.25f); break;
-            }
-        }
-        foreach (var e in S.Explosions)
-        {
-            float t = e.T / e.Dur;
-            Glow(SX(e.X), SY(e.Y), e.R * (2.2f - t), Orange, 0.45f * (1 - t));
-            if (t < 0.2f) Glow(SX(e.X), SY(e.Y), e.R * 1.2f, Yellow, 0.3f);
-        }
-        if (!P.Dead && P.MuzzleT > 0 && P.Char != 4)
-            { var gg = Sprites.GunOf(Chars.All[P.Char].Look); Glow(SX(P.X) + P.Facing * gg.MuzzleX, SY(P.Y) + gg.MuzzleY, 18, Yellow, 0.6f); }
-        foreach (var e in S.Enemies)
-            if (!e.Dead && e.MuzzleT > 0) Glow(SX(e.X) + e.Facing * 11, SY(e.Y) + (e.Kind == EnemyKind.Rocketeer ? -11 : -7), 14, Orange, 0.55f);
-        foreach (var p in S.Props)
-            if (!p.Done && p.Kind == PropKind.Glorb) Glow(SX(p.X), SY(p.Y), 10, Cyan, 0.25f + 0.1f * MathF.Sin(p.T * 6));
-            else if (!p.Done && p.Kind == PropKind.Barrel && p.Fuse >= 0) Glow(SX(p.X), SY(p.Y) - 5, 14, Red, 0.5f);
-        foreach (var p in parts)
-            if (p.Kind == PKind.Flash) Glow(SX(p.X), SY(p.Y), p.Size * 3, p.C, 0.5f * p.Life / p.Max);
-            else if (p.Kind == PKind.Spark) Glow(SX(p.X), SY(p.Y), 3, p.C, 0.4f * p.Life / p.Max);
-            else if (p.Kind == PKind.Fire && p.Life / p.Max > 0.35f && ((int)p.Max * 100 + (int)p.Size) % 3 == 0) Glow(SX(p.X), SY(p.Y), p.Size * 2.2f, Orange, 0.1f);
-            else if (p.Kind == PKind.Flame) Glow(SX(p.X), SY(p.Y) - 3, 12, Orange, 0.3f + 0.1f * MathF.Sin(time * 25 + p.X));
-            else if (p.Kind == PKind.BurnDebris) Glow(SX(p.X), SY(p.Y), 6, Orange, 0.35f);
-        foreach (var g in ghosts)
-        {
-            int idx = S.Frame - g.StartFrame;
-            if (idx < 0 || idx >= g.Frames.Count) continue;
-            Glow(SX(g.Frames[idx].X), SY(g.Frames[idx].Y) - 11, 18, Cyan, 0.18f);
-        }
-        if (P.Shield > 0 && !P.Dead) Glow(SX(P.X), SY(P.Y) - 11, 18, Cyan, 0.2f);
-    }
-
     void DrawTexts()
     {
         foreach (var t in texts)
@@ -597,7 +528,6 @@ public sealed partial class Game
             }
         // camadas de parallax (posicao em float = rolagem suave sub-pixel)
         BgLayer(Art.Far[ei], S.CamX * 0.12f);
-        Raylib.DrawRectangleGradientV(0, K.H - 90, K.W + 1, 90, A(e.SkyBot, 0f), A(e.SkyBot, 0.35f));
         BgLayer(Art.Mid[ei], S.CamX * 0.35f);
 
         // particulas de ambiente (folhas, cinzas, vagalumes, chuva neon)
@@ -639,11 +569,6 @@ public sealed partial class Game
 
     void DrawOverlay()
     {
-        if (mode is Mode.Play or Mode.Dying or Mode.Paused)
-        {
-            Raylib.DrawRectangleGradientH(0, 0, 40, K.H, A(Ink, 0.35f), A(Ink, 0));
-            Raylib.DrawRectangleGradientH(K.W - 40, 0, 40, K.H, A(Ink, 0), A(Ink, 0.35f));
-        }
         switch (mode)
         {
             case Mode.Title: DrawTitle(); break;

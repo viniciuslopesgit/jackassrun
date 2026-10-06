@@ -48,10 +48,6 @@
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/inimigos/selva_bazuqueiro.png
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/inimigos/selva_brutamontes.png
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/inimigos/selva_soldado.png
-/Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/cenarios/futuro/ceu.png
-/Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/cenarios/jurassico/ceu.png
-/Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/cenarios/medieval/ceu.png
-/Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/cenarios/selva/ceu.png
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/inimigos/futuro_torreta.png
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/inimigos/futuro_voador.png
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/inimigos/jurassico_torreta.png
@@ -68,3 +64,7 @@
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/tiles/jurassico.png
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/tiles/medieval.png
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/tiles/selva.png
+/Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/cenarios/futuro/ceu.png
+/Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/cenarios/jurassico/ceu.png
+/Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/cenarios/medieval/ceu.png
+/Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/cenarios/selva/ceu.png

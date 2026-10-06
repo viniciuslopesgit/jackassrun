@@ -10,6 +10,7 @@ public sealed partial class Game
 {
     readonly List<Decal> decals = new();
     readonly List<(int x, int y)> collapseQ = new();
+    readonly List<(int x, int y)> brokenQ = new();     // blocos destruidos neste frame
 
     static readonly Color BloodRed = Hex(0xc0121e), BloodDark = Hex(0x7a0a12), Oil = Hex(0x2a2638);
     static readonly Color SmokeDark = Hex(0x463e40), FireRed = Hex(0xd8401e);
@@ -135,7 +136,7 @@ public sealed partial class Game
     /// <summary>Danifica um tile. Retorna true se ele foi destruido.</summary>
     bool DamageTile(int tx, int ty, int dmg)
     {
-        byte b = Ter.Get(tx, ty);
+        ushort b = Ter.Get(tx, ty);
         int type = Terrain.TypeOf(b);
         if (type == 0) return true;
         float cx = tx * K.T + K.HT, cy = ty * K.T + K.HT;
@@ -161,11 +162,12 @@ public sealed partial class Game
                     boom ? 1.8f : 1.2f, fx.Next(2, 4), c, 540);
             }
             if (!boom || fx.Next(2) == 0) AddPart(PKind.Smoke, cx, cy, R(-12, 12), -R(5, 25), 0.7f, 3, A(dust, 0.85f));
+            brokenQ.Add((tx, ty));
             collapseQ.Add((tx - 1, ty)); collapseQ.Add((tx + 1, ty));
             collapseQ.Add((tx, ty - 1)); collapseQ.Add((tx, ty + 1));
             return true;
         }
-        Ter.Set(S.Frame, tx, ty, Terrain.Make(type, d));
+        Ter.Set(S.Frame, tx, ty, Terrain.WithDmg(b, d));
         for (int k = 0; k < 2; k++) AddPart(PKind.Debris, cx + R(-3, 3), cy + R(-3, 3), R(-50, 50), -R(30, 100), 0.6f, 1, c, 540);
         AddPart(PKind.Smoke, cx, cy, R(-8, 8), -R(4, 12), 0.35f, 1.5f, A(dust, 0.7f));
         return false;
@@ -179,6 +181,41 @@ public sealed partial class Game
     /// <summary>Estruturas sem apoio (sem chao embaixo nem aco segurando) desabam em blocos.</summary>
     void ProcessCollapse()
     {
+        // 1) Gravidade por coluna: o que estava em cima de um bloco destruido cai junto
+        //    (a pilha inteira ate encontrar ar ou aco, que fica preso).
+        if (brokenQ.Count > 0)
+        {
+            bool any = false;
+            foreach (var (bx, by) in brokenQ)
+            {
+                if (Ter.Solid(bx, by)) continue;          // ja foi preenchido por outro bloco
+                int above = by - 1;
+                if (!Ter.Solid(bx, above) || Ter.Type(bx, above) == Terrain.STEEL) continue;
+                // preso pelos lados: so as vezes cai (terra segura mais, caixote quase sempre cai)
+                if (Ter.Solid(bx - 1, above) || Ter.Solid(bx + 1, above))
+                {
+                    float chance = Ter.Type(bx, above) switch
+                    {
+                        Terrain.DIRT => Tune.FallDirt, Terrain.BRICK => Tune.FallBrick, _ => Tune.FallCrate,
+                    };
+                    if (!S.Rng.Chance(chance)) continue;
+                }
+                int top = by - 1;
+                while (top >= 0 && Ter.Solid(bx, top) && Ter.Type(bx, top) != Terrain.STEEL) top--;
+                for (int y = by - 1; y > top; y--)          // de baixo para cima
+                {
+                    ushort b = Ter.Get(bx, y);
+                    Ter.Set(S.Frame, bx, y, 0);
+                    S.Falling.Add(new FallingBlock { X = bx * K.T, Y = y * K.T, Tile = b, VY = 0 });
+                    collapseQ.Add((bx - 1, y)); collapseQ.Add((bx + 1, y));
+                    any = true;
+                }
+            }
+            brokenQ.Clear();
+            if (any) { sfx.Play("hit", 0.4f, 0.45f); shake = MathF.Max(shake, 1.5f); }
+        }
+
+        // 2) Estruturas que ficaram totalmente soltas (sem chao embaixo nem aco segurando) desabam
         if (collapseQ.Count == 0) return;
         var stack = new Stack<(int, int)>();
         var seen = new HashSet<(int, int)>();
@@ -204,9 +241,9 @@ public sealed partial class Game
             if (supported) continue;
             foreach (var (x, y) in comp)
             {
-                byte b = Ter.Get(x, y);
+                ushort b = Ter.Get(x, y);
                 Ter.Set(S.Frame, x, y, 0);
-                S.Falling.Add(new FallingBlock { X = x * K.T, Y = y * K.T, Tile = b, VY = R(-10, 20) });
+                S.Falling.Add(new FallingBlock { X = x * K.T, Y = y * K.T, Tile = b, VY = 0 });
             }
             sfx.Play("boom", 0.35f, 0.5f);
             shake = MathF.Max(shake, 2.5f);
@@ -227,7 +264,8 @@ public sealed partial class Game
             if (Ter.Solid(tx, below))
             {
                 int ty = below - 1;
-                if (ty >= 0 && !Ter.Solid(tx, ty)) Ter.Set(S.Frame, tx, ty, f.Tile);
+                while (ty >= 0 && Ter.Solid(tx, ty)) ty--;        // pousa em cima do que ja estiver ali
+                if (ty >= 0) Ter.Set(S.Frame, tx, ty, f.Tile);
                 f.Dead = true;
                 var c = TileColor(Terrain.TypeOf(f.Tile), Eras.ForCol(tx));
                 for (int k = 0; k < 3; k++) AddPart(PKind.Smoke, f.X + R(0, K.T), ty * K.T + K.T, R(-30, 30), -R(5, 20), 0.6f, 2.5f, A(Col.Lerp(c, White, 0.35f), 0.8f));
@@ -249,8 +287,16 @@ public sealed partial class Game
             foreach (var p in S.Props)
                 if (!p.Done && p.Kind == PropKind.Barrel && p.Fuse < 0 && Hit(f.X, f.Y, f.X + K.T, f.Y + K.T, p.X - 4, p.Y - 10, p.X + 4, p.Y))
                     p.Fuse = 0.05f;
+            // no heroi o bloco se despedaca em vez de esmagar (como no Broforce)
             if (!P.Dead && Hit(f.X, f.Y, f.X + K.T, f.Y + K.T, P.X - 3, P.Y - 16, P.X + 3, P.Y))
-                KillPlayer(0, "ESMAGADO POR ESCOMBROS", true);
+            {
+                f.Dead = true;
+                var bc = TileColor(Terrain.TypeOf(f.Tile), Eras.ForCol(tx));
+                for (int k = 0; k < 6; k++) AddPart(PKind.Debris, f.X + R(0, K.T), f.Y + R(4, K.T), R(-90, 90), -R(40, 140), 1.1f, fx.Next(2, 4), bc, 540);
+                for (int k = 0; k < 3; k++) AddPart(PKind.Smoke, f.X + R(0, K.T), f.Y + K.HT, R(-20, 20), -R(5, 20), 0.6f, 2.5f, A(Col.Lerp(bc, White, 0.35f), 0.8f));
+                sfx.Play("hit", 0.6f, 0.6f);
+                shake = MathF.Max(shake, 1.5f);
+            }
         }
     }
 

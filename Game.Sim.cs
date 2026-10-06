@@ -3,6 +3,33 @@ using static JackassRun.Col;
 
 namespace JackassRun;
 
+/// <summary>Ajuste de dificuldade dos inimigos: mexa aqui para deixa-los mais calmos ou mais bravos.</summary>
+static class Tune
+{
+    public const float SeeRange = 95;           // distancia em que o soldado percebe voce (so olhando para voce)
+    public const float SeeBehind = 16;          // percebe quem esta colado nas costas
+    public const float AlertTime = 1.1f;        // tempo do "!" antes de reagir
+    public const float FirstShotDelay = 0.7f;   // espera extra depois do "!"
+    public const float ShootRange = 160;        // distancia maxima para atirar
+    public const int SoldierBurst = 1;          // tiros por rajada
+    public const float SoldierRest = 2.6f;      // pausa entre rajadas (+ ate 1s aleatorio)
+    public const float BulletSpeed = 85;        // velocidade das balas inimigas
+    public const float RocketRest = 4.5f;       // pausa do bazuqueiro (+ ate 1s)
+    public const float BruteRest = 3.2f;        // pausa do brutamontes (+ ate 0,6s)
+    public const int TurretBurst = 1;
+    public const float TurretRest = 3.0f;
+    public const float TurretRange = 150;
+    public const float BombRest = 2.6f;         // intervalo das bombas dos voadores
+    public const float ShotGap = 0.7f;          // intervalo minimo entre tiros de QUALQUER inimigo (um atira por vez)
+
+    // Chance de um bloco cair quando o de baixo e destruido, se ele estiver preso a outro bloco pelos lados.
+    // (Sem nada dos lados ele sempre cai.) 0 = nunca cai, 1 = sempre cai.
+    public const float FallDirt = 0.25f;
+    public const float FallBrick = 0.4f;
+    public const float FallCrate = 0.75f;
+    public const float ScreenMargin = 12;       // so atiram quando estao visiveis na tela
+}
+
 public sealed partial class Game
 {
     void Step(InputState i)
@@ -140,8 +167,11 @@ public sealed partial class Game
 
             // escalar paredes segurando na direcao delas (como no Broforce)
             p.Climbing = false;
-            if (!p.OnGround && dir != 0 && Overlaps(p.X + dir * 2, p.Y - 2, 4, 12))
+            // sendo empurrado pela borda da tela contra uma parede: escala sozinho
+            bool edgePush = p.X < S.CamX + 14 && Overlaps(p.X + 2, p.Y - 2, 4, 12);
+            if (edgePush || !p.OnGround && dir != 0 && Overlaps(p.X + dir * 2, p.Y - 2, 4, 12))
             {
+                if (edgePush && dir <= 0) { dir = 1; p.Facing = 1; }
                 p.Climbing = true; p.WallDir = dir;
                 p.VY = MathF.Min(p.VY, -70);
                 if (fx.Next(6) == 0) AddPart(PKind.Pixel, p.X + dir * 4, p.Y - 4, -dir * 20, 10, 0.3f, 1, Hex(0xc8b8a0));
@@ -200,12 +230,23 @@ public sealed partial class Game
             trails.Add(new Trail { X = p.X, Y = p.Y, Facing = p.Facing, Char = p.Char, Life = 0.22f,
                 Anim = Anim.FromPhysics(p.OnGround, false, p.VX, p.VY, p.AnimT, 0, p.DashT > 0) });
 
-        // bordas da tela: a esquerda empurra; se ficar esmagado, morre
+        // bordas da tela: a esquerda empurra. Se prensar contra algo, sobe por cima do obstaculo;
+        // so morre se nao houver saida nenhuma (ex.: preso embaixo de aco)
         if (p.X - 4 < S.CamX)
         {
             p.X = S.CamX + 4;
             if (p.VX < 0) p.VX = 0;
-            if (Overlaps(p.X, p.Y, 3.5f, 16)) { KillPlayer(0, "ESMAGADO PELO TEMPO"); }
+            if (Overlaps(p.X, p.Y, 3.5f, 16))
+            {
+                int up = 1;
+                while (up <= K.T * 5 && Overlaps(p.X, p.Y - up, 3.5f, 16)) up++;
+                if (up <= K.T * 5)
+                {
+                    p.Y -= up; p.VY = MathF.Min(p.VY, -60);
+                    for (int k = 0; k < 4; k++) AddPart(PKind.Smoke, p.X + 3, p.Y, fx.Next(-10, 20), -fx.Next(5, 20), 0.35f, 1.6f, Hex(0xe8dcc8));
+                }
+                else KillPlayer(0, "ESMAGADO PELO TEMPO");
+            }
         }
         if (p.X > S.CamX + K.W - 6) { p.X = S.CamX + K.W - 6; p.VX = MathF.Min(p.VX, 0); }
         if (p.Y > K.ROWS * K.T + 30) { KillPlayer(0, "CAIU NO VAZIO TEMPORAL"); }
@@ -324,7 +365,6 @@ public sealed partial class Game
                 sfx.Play("slash", vol);
                 break;
         }
-        if (ch != 4) AddPart(PKind.Flash, mx + f * 2, gy, 0, 0, 0.06f, 4, White);
     }
 
     void SpecialEffect(int ch, float x, float y, int f, bool ghost)
@@ -386,6 +426,7 @@ public sealed partial class Game
         float dt = K.DT;
         bool frozen = S.FreezeT > 0;
         if (frozen) S.FreezeT -= dt;
+        if (S.ShotCD > 0 && !frozen) S.ShotCD -= dt;
         var era = Eras.ForX(S.CamX + K.W / 2f);
 
         for (int n = 0; n < S.Enemies.Count; n++)
@@ -405,9 +446,10 @@ public sealed partial class Game
                     e.X -= 22 * dt;
                     e.Y = e.BaseY + MathF.Sin(e.Phase) * 10;
                     e.FireT -= dt;
-                    if (FindTarget(e.X, e.Y, 18, 160, out float tx, out float ty) && ty > e.Y && e.FireT <= 0)
+                    if (OnScreen(e) && S.ShotCD <= 0 && FindTarget(e.X, e.Y, 14, 160, out float tx, out float ty) && ty > e.Y && e.FireT <= 0)
                     {
-                        e.FireT = 1.1f;
+                        e.FireT = Tune.BombRest;
+                        S.ShotCD = Tune.ShotGap;
                         AddBullet(BulletKind.EBomb, e.X, e.Y + 5, 0, 20, false, e.Id);
                         sfx.Play("eshoot", 0.7f, 0.6f);
                     }
@@ -416,15 +458,16 @@ public sealed partial class Game
                 }
                 case EnemyKind.Turret:
                 {
-                    if (FindTarget(e.X, e.Y - 6, 190, 50, out float tx, out float ty))
+                    if (OnScreen(e) && FindTarget(e.X, e.Y - 6, Tune.TurretRange, 50, out float tx, out float ty))
                     {
                         e.Facing = tx < e.X ? -1 : 1;
                         e.FireT -= dt;
-                        if (e.FireT <= 0)
+                        if (e.FireT <= 0 && S.ShotCD <= 0)
                         {
-                            EnemyShoot(e, e.X + e.Facing * 10, e.Y - 8, tx, ty, 140, era);
+                            EnemyShoot(e, e.X + e.Facing * 10, e.Y - 8, tx, ty, Tune.BulletSpeed + 10, era, aim: true);
+                            S.ShotCD = Tune.ShotGap;
                             e.Burst++;
-                            e.FireT = e.Burst % 3 == 0 ? 1.8f : 0.16f;
+                            e.FireT = e.Burst % Tune.TurretBurst == 0 ? Tune.TurretRest : 0.22f;
                         }
                     }
                     break;
@@ -445,16 +488,16 @@ public sealed partial class Game
 
         if (!e.Alerted)
         {
-            if (e.AlertT <= 0 && FindTarget(e.X, gunY, 150, 32, out float tx, out _) &&
-                (MathF.Sign(tx - e.X) == e.Facing || MathF.Abs(tx - e.X) < 45))
+            if (e.AlertT <= 0 && OnScreen(e) && FindTarget(e.X, gunY, Tune.SeeRange, 32, out float tx, out _) &&
+                (MathF.Sign(tx - e.X) == e.Facing || MathF.Abs(tx - e.X) < Tune.SeeBehind))
             {
-                e.AlertT = 0.5f; e.Facing = tx < e.X ? -1 : 1;
+                e.AlertT = Tune.AlertTime; e.Facing = tx < e.X ? -1 : 1;
                 sfx.Play("alert", 0.6f);
             }
             if (e.AlertT > 0)
             {
                 e.AlertT -= dt; e.VX = 0;
-                if (e.AlertT <= 0) { e.Alerted = true; e.FireT = 0.15f; e.AlertT = 0; }
+                if (e.AlertT <= 0) { e.Alerted = true; e.FireT = Tune.FirstShotDelay; e.AlertT = 0; }
             }
             else
             {
@@ -472,37 +515,39 @@ public sealed partial class Game
         }
         else
         {
-            if (FindTarget(e.X, gunY, 210, 48, out float tx, out float ty))
+            if (FindTarget(e.X, gunY, Tune.ShootRange, 48, out float tx, out float ty))
             {
                 e.Facing = tx < e.X ? -1 : 1;
                 e.VX = 0;
                 if (e.Kind == EnemyKind.Brute && MathF.Abs(tx - e.X) > 60 && e.OnGround && !Ter.SolidAt(e.X + e.Facing * 8, e.Y - 4) && Ter.SolidAt(e.X + e.Facing * 8, e.Y + 2))
                     e.VX = e.Facing * walk;
                 e.FireT -= dt;
-                if (e.FireT <= 0)
+                // so atira em linha reta: espera o alvo estar mais ou menos na altura da arma
+                if (e.FireT <= 0 && S.ShotCD <= 0 && MathF.Abs(ty - gunY) < 20 && OnScreen(e))
                 {
                     float mx = e.X + e.Facing * 11;
+                    S.ShotCD = Tune.ShotGap;
                     switch (e.Kind)
                     {
                         case EnemyKind.Soldier:
-                            EnemyShoot(e, mx, gunY, tx, ty, 130, era);
+                            EnemyShoot(e, mx, gunY, tx, ty, Tune.BulletSpeed, era);
                             e.Burst++;
-                            e.FireT = e.Burst % 3 == 0 ? S.Rng.Range(1.3f, 2.2f) : 0.15f;
+                            e.FireT = e.Burst % Tune.SoldierBurst == 0 ? Tune.SoldierRest + S.Rng.Range(0, 1f) : 0.2f;
                             break;
                         case EnemyKind.Rocketeer:
                             AddBullet(BulletKind.ERocket, mx, gunY - 1, e.Facing * 60, 0, false, e.Id);
                             sfx.Play("rocket", 0.6f, 1.2f);
                             e.MuzzleT = 0.08f;
-                            e.FireT = S.Rng.Range(2.2f, 3f);
+                            e.FireT = Tune.RocketRest + S.Rng.Range(0, 1f);
                             break;
                         case EnemyKind.Brute:
-                            for (int k = -1; k <= 1; k++)
+                            for (int k = 0; k <= 1; k++)
                             {
-                                var b = AddBullet(BulletKind.EBullet, mx, gunY, e.Facing * 120, k * 32, false, e.Id);
+                                AddBullet(BulletKind.EBullet, mx, gunY, e.Facing * (Tune.BulletSpeed + k * 18), 0, false, e.Id);   // rajada reta
                             }
                             sfx.Play("eshoot", 0.9f, 0.7f);
                             e.MuzzleT = 0.08f;
-                            e.FireT = S.Rng.Range(1.4f, 1.9f);
+                            e.FireT = Tune.BruteRest + S.Rng.Range(0, 0.6f);
                             break;
                     }
                 }
@@ -518,16 +563,18 @@ public sealed partial class Game
         if (!was && e.OnGround) e.LandT = 0.1f;
     }
 
-    void EnemyShoot(Enemy e, float x, float y, float tx, float ty, float speed, Era era)
+    /// <summary>Tiro inimigo. Soldados atiram so para frente/tras; apenas torretas (aim) miram na diagonal.</summary>
+    bool OnScreen(Enemy e) => e.X > S.CamX + Tune.ScreenMargin && e.X < S.CamX + K.W - Tune.ScreenMargin;
+
+    void EnemyShoot(Enemy e, float x, float y, float tx, float ty, float speed, Era era, bool aim = false)
     {
         float dx = tx - x, dy = ty - y;
         float d = MathF.Max(1, MathF.Sqrt(dx * dx + dy * dy));
-        float vy = Math.Clamp(dy / d * speed, -45, 45);
+        float vy = aim ? Math.Clamp(dy / d * speed, -45, 45) : 0;
         AddBullet(BulletKind.EBullet, x, y, MathF.Sign(dx) * speed, vy, false, e.Id);
         e.MuzzleT = 0.07f;
         sfx.Play("eshoot", 0.8f);
         AddPart(PKind.Shell, e.X, y, -MathF.Sign(dx) * fx.Next(30, 60), -fx.Next(70, 120), 1.2f, 1, Hex(0xe0b040), 500);
-        AddPart(PKind.Flash, x, y, 0, 0, 0.06f, 3, Yellow);
     }
 
     // ------------------------------------------------------------------ props

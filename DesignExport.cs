@@ -318,16 +318,29 @@ public static class DesignExport
 
     static void Sky(Era e)
     {
-        Raylib.DrawRectangleGradientV(0, 0, K.W, K.H, e.SkyTop, e.SkyBot);
+        // ceu em faixas de cor (pixel art, sem degrade liso)
+        const int bands = 10;
+        for (int i = 0; i < bands; i++)
+        {
+            int y0 = i * K.H / bands, y1 = (i + 1) * K.H / bands;
+            Rect(0, y0, K.W, y1 - y0, Col.Lerp(e.SkyTop, e.SkyBot, i / (float)(bands - 1)));
+        }
         int sunX = 230, sunY = e.Style == BgStyle.Future ? 70 : 40;
         int sr = e.Style == BgStyle.Future ? 34 : 16;
-        var skyAt = Col.Lerp(e.SkyTop, e.SkyBot, sunY / (float)K.H);    // cor do ceu na altura do sol
-        PixelCircle(sunX, sunY, sr + 8, Col.Lerp(skyAt, e.Sun, 0.15f));
-        PixelCircle(sunX, sunY, sr + 4, Col.Lerp(skyAt, e.Sun, 0.32f));
         PixelCircle(sunX, sunY, sr, e.Sun);
         if (e.Style == BgStyle.Future)
             for (int i = 0; i < 6; i++) Rect(sunX - sr - 1, sunY + 4 + i * 5, sr * 2 + 3, 1 + i / 2, e.SkyBot);
-        if (e.Style == BgStyle.Medieval) PixelCircle(sunX + 5, sunY - 3, sr - 2, skyAt);
+        if (e.Style == BgStyle.Medieval)
+        {
+            // lua crescente: "corta" o circulo com a cor da faixa de ceu de cada linha
+            int cx = sunX + 5, cy = sunY - 3, r = sr - 2;
+            for (int dy = -r; dy <= r; dy++)
+            {
+                int half = (int)MathF.Sqrt(r * r - dy * dy + r * 0.6f);
+                int y = cy + dy, band = Math.Clamp(y * bands / K.H, 0, bands - 1);
+                Rect(cx - half, y, half * 2 + 1, 1, Col.Lerp(e.SkyTop, e.SkyBot, band / (float)(bands - 1)));
+            }
+        }
     }
 
     /// <summary>Funcao de altura que fecha o ciclo: os ultimos 96px se misturam com o comeco.</summary>

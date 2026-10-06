@@ -184,20 +184,6 @@ public static partial class Gfx
         if (((int)(t * 5) & 3) == 0) { Rect(cx + 4, cy - 4, 1, 1, White); Rect(cx + 3, cy - 5, 3, 1, A(White, 0.5f)); }
     }
 
-    /// <summary>Clarao de disparo: cone de fogo na direcao do tiro, alternando formatos.</summary>
-    public static void MuzzleStar(int x, int y, int dir, int size, int frame, Color c)
-    {
-        int f = frame & 1;
-        int len = size * 2 + 2 + f * 2;
-        for (int i = 0; i < len; i++)
-        {
-            int h = Math.Max(1, (int)((size + 1) * MathF.Sin((i + 1) / (float)(len + 1) * MathF.PI)));
-            Rect(x + dir * i - (dir < 0 ? 0 : 0), y - h / 2, 1, h, i < len / 3 ? White : c);
-        }
-        Rect(x + dir * (len / 2), y - size - 1 - f, 1, size * 2 + 3 + f * 2, A(c, 0.8f));
-        PixelCircle(x, y, Math.Max(1, size / 2 + f), White);
-    }
-
     public static void Text(string s, int x, int y, int size, Color c, Color? outline = null)
     {
         // sombra suave em vez de contorno
@@ -211,8 +197,4 @@ public static partial class Gfx
 
     public static void Line(float x0, float y0, float x1, float y1, Color c) =>
         Raylib.DrawLineV(new Vector2(x0, y0), new Vector2(x1, y1), c);
-
-    /// <summary>Brilho suave (usar dentro do modo de mistura aditivo).</summary>
-    public static void Glow(float x, float y, float r, Color c, float a) =>
-        Raylib.DrawCircleGradient(new Vector2(x, y), r, A(c, a), A(c, 0));
 }

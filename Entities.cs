@@ -53,7 +53,7 @@ public sealed class Prop
 public sealed class FallingBlock
 {
     public float X, Y, VY;      // canto superior esquerdo, em pixels
-    public byte Tile;
+    public ushort Tile;
     public bool Dead;
     public FallingBlock Clone() => (FallingBlock)MemberwiseClone();
 }
@@ -70,6 +70,7 @@ public sealed class WorldState
 {
     public int Frame, NextChunk, NextId = 1_000_000, Score, Kills;
     public float CamX, Speed = 34, FreezeT;
+    public float ShotCD;          // "vez" de atirar: enquanto > 0 nenhum inimigo atira
     public Rng Rng;
     public List<Enemy> Enemies = new();
     public List<Bullet> Bullets = new();
@@ -113,7 +114,8 @@ public sealed class Ghost
     public int EndFrame => StartFrame + Frames.Count - 1;
 }
 
-/// <summary>Terreno destrutivel. Cada tile e um byte: tipo nos 3 bits altos, dano nos 5 baixos.
+/// <summary>Terreno destrutivel. Cada tile e um ushort: tipo | aparencia (grama/terra/fundo) | variacao | dano.
+/// A aparencia e decidida ao gerar o bloco e viaja com ele: nunca muda por causa dos vizinhos.
 /// Toda alteracao entra num log com o frame, para poder ser desfeita ao rebobinar.</summary>
 public sealed class Terrain
 {
@@ -122,37 +124,42 @@ public sealed class Terrain
 
     readonly struct Mod
     {
-        public readonly int Frame, X, Y; public readonly byte Old;
-        public Mod(int f, int x, int y, byte o) { Frame = f; X = x; Y = y; Old = o; }
+        public readonly int Frame, X, Y; public readonly ushort Old;
+        public Mod(int f, int x, int y, ushort o) { Frame = f; X = x; Y = y; Old = o; }
     }
 
-    readonly Dictionary<int, byte[]> cols = new();
+    readonly Dictionary<int, ushort[]> cols = new();
     readonly List<Mod> log = new();
 
-    public static int TypeOf(byte b) => b >> 5;
-    public static int DmgOf(byte b) => b & 31;
+    // bits: 0-3 dano | 4-5 variacao | 6-7 aparencia (0 grama, 1 terra, 2 fundo) | 8-10 tipo
+    public static int TypeOf(ushort b) => (b >> 8) & 7;
+    public static int DmgOf(ushort b) => b & 15;
+    public static int VarOf(ushort b) => (b >> 4) & 3;
+    public static int LookOf(ushort b) => (b >> 6) & 3;
     public static int HpOf(int type) => MaxHp[type];
-    public static byte Make(int type, int dmg = 0) => (byte)((type << 5) | dmg);
+    public static ushort Make(int type, int dmg = 0, int variant = 0, int look = 0) =>
+        (ushort)((type << 8) | ((look & 3) << 6) | ((variant & 3) << 4) | Math.Min(dmg, 15));
+    public static ushort WithDmg(ushort b, int dmg) => (ushort)((b & ~15) | Math.Min(dmg, 15));
 
-    public byte Get(int tx, int ty)
+    public ushort Get(int tx, int ty)
     {
         if (ty < 0 || ty >= K.ROWS) return 0;
-        return cols.TryGetValue(tx, out var c) ? c[ty] : (byte)0;
+        return cols.TryGetValue(tx, out var c) ? c[ty] : (ushort)0;
     }
-    public int Type(int tx, int ty) => Get(tx, ty) >> 5;
-    public bool Solid(int tx, int ty) => (Get(tx, ty) >> 5) != 0;
+    public int Type(int tx, int ty) => TypeOf(Get(tx, ty));
+    public bool Solid(int tx, int ty) => TypeOf(Get(tx, ty)) != 0;
     public bool SolidAt(float x, float y) => Solid((int)MathF.Floor(x / K.T), (int)MathF.Floor(y / K.T));
 
-    public void SetRaw(int tx, int ty, byte v)
+    public void SetRaw(int tx, int ty, ushort v)
     {
         if (ty < 0 || ty >= K.ROWS) return;
-        if (!cols.TryGetValue(tx, out var c)) { c = new byte[K.ROWS]; cols[tx] = c; }
+        if (!cols.TryGetValue(tx, out var c)) { c = new ushort[K.ROWS]; cols[tx] = c; }
         c[ty] = v;
     }
 
-    public void Set(int frame, int tx, int ty, byte v)
+    public void Set(int frame, int tx, int ty, ushort v)
     {
-        byte old = Get(tx, ty);
+        ushort old = Get(tx, ty);
         if (old == v || ty < 0 || ty >= K.ROWS) return;
         log.Add(new Mod(frame, tx, ty, old));
         SetRaw(tx, ty, v);
