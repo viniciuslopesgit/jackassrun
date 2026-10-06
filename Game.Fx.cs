@@ -307,18 +307,20 @@ public sealed partial class Game
             {
                 if (Ter.Solid(bx, by)) continue;          // ja foi preenchido por outro bloco
                 int above = by - 1;
-                if (!Ter.Solid(bx, above) || Terrain.Unbreakable(Ter.Type(bx, above))) continue;
-                // preso pelos lados: so as vezes cai (terra segura mais, caixote quase sempre cai)
+                int ta = Ter.Type(bx, above);
+                if (!Ter.Solid(bx, above) || GameConfig.NuncaCai(ta)) continue;     // aco, rocha e os que nunca caem
+                if (ta == Terrain.ROOF) continue;      // telhado so cai quando fica todo solto (ver abaixo)
                 if (!forced && (Ter.Solid(bx - 1, above) || Ter.Solid(bx + 1, above)))
                 {
-                    float chance = Ter.Type(bx, above) switch
+                    // preso pelos lados: so as vezes cai (terra segura mais, caixote quase sempre cai)
+                    float chance = ta switch
                     {
                         Terrain.DIRT => Tune.FallDirt, Terrain.BRICK => Tune.FallBrick, Terrain.CONCRETE => 0.1f, _ => Tune.FallCrate,
                     };
                     if (!S.Rng.Chance(chance)) continue;
                 }
                 int top = by - 1;
-                while (top >= 0 && Ter.Solid(bx, top) && !Terrain.Unbreakable(Ter.Type(bx, top))) top--;
+                while (top >= 0 && Ter.Solid(bx, top) && !GameConfig.NuncaCai(Ter.Type(bx, top)) && Ter.Type(bx, top) != Terrain.ROOF) top--;
                 for (int y = by - 1; y > top; y--)          // de baixo para cima
                 {
                     ushort b = Ter.Get(bx, y);
@@ -337,9 +339,11 @@ public sealed partial class Game
         var stack = new Stack<(int, int)>();
         var seen = new HashSet<(int, int)>();
         var comp = new List<(int x, int y)>();
+        var checkedTiles = new HashSet<(int, int)>();
         foreach (var start in collapseQ)
         {
-            if (!Ter.Solid(start.x, start.y) || Terrain.Unbreakable(Ter.Type(start.x, start.y))) continue;
+            if (!Ter.Solid(start.x, start.y) || GameConfig.NuncaCai(Ter.Type(start.x, start.y))) continue;
+            if (checkedTiles.Contains(start)) continue;               // ja avaliado neste quadro
             stack.Clear(); seen.Clear(); comp.Clear();
             stack.Push(start); seen.Add(start);
             bool supported = false;
@@ -351,13 +355,20 @@ public sealed partial class Game
                 foreach (var n in new[] { (x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1) })
                 {
                     if (!Ter.Solid(n.Item1, n.Item2)) continue;
-                    if (Terrain.Unbreakable(Ter.Type(n.Item1, n.Item2))) { supported = true; break; }
+                    if (GameConfig.NuncaCai(Ter.Type(n.Item1, n.Item2))) { supported = true; break; }   // aco, rocha, terra...
                     if (seen.Add(n)) stack.Push(n);
                 }
             }
+            foreach (var t in seen) checkedTiles.Add(t);
             if (supported) continue;
+            // telhado solto: nem sempre cai. A decisao e fixa para cada telhado (vem da posicao dele), entao
+            // atirar de novo no mesmo telhado nao muda nada — so quebrar um pedaco dele (novo telhado) sorteia de novo
+            int ax = int.MaxValue, ay = 0;
+            foreach (var (x, y) in comp) if (Ter.Type(x, y) == Terrain.ROOF && (x < ax || x == ax && y < ay)) { ax = x; ay = y; }
+            bool roofFalls = ax == int.MaxValue || Hash.F(ax * 7 + comp.Count, ay * 13 + (int)(seed & 0xffff)) < GameConfig.ChanceTelhadoCair;
             foreach (var (x, y) in comp)
             {
+                if (!roofFalls && Ter.Type(x, y) == Terrain.ROOF) continue;
                 ushort b = Ter.Get(x, y);
                 Ter.Set(S.Frame, x, y, 0);
                 S.Falling.Add(new FallingBlock { X = x * K.T, Y = y * K.T, Tile = b, VY = 0 });
@@ -411,6 +422,20 @@ public sealed partial class Game
                     onCage = true;
                     break;
                 }
+            }
+            if ((Ter.Solid(tx, below) || onCage) && Terrain.TypeOf(f.Tile) == Terrain.ROOF)
+            {
+                // telhado que cai se parte em pedacos (telhas voando) em vez de virar bloco no chao
+                f.Dead = true;
+                var rc = TileColor(Terrain.ROOF, Eras.ForCol(tx));
+                float gy = below * K.T;
+                for (int k = 0; k < 7; k++)
+                    AddPart(PKind.Debris, f.X + R(0, K.T), gy - R(2, 8), R(-110, 110), -R(60, 170), 1.3f, fx.Next(2, 4), k % 3 == 0 ? Mul(rc, 0.7f) : rc, 540);
+                for (int k = 0; k < 3; k++) AddPart(PKind.Smoke, f.X + R(0, K.T), gy - 4, R(-25, 25), -R(5, 20), 0.6f, 2.5f, A(Col.Lerp(rc, White, 0.4f), 0.8f));
+                sfx.Play("hit", 0.5f, 1.3f);
+                sfx.Play("clank", 0.25f, 0.7f);
+                shake = MathF.Max(shake, 1.2f);
+                continue;
             }
             if (Ter.Solid(tx, below) || onCage)
             {
@@ -620,7 +645,13 @@ public sealed partial class Game
             var c = corpses[i];
             c.T += dt; c.Life -= dt;
             if (c.Life <= 0 || c.Y > K.ROWS * K.T + 40) { corpses.RemoveAt(i); continue; }
-            if (c.Rest) continue;
+            if (c.Rest)
+            {
+                // parado no chao: se o chao sumir embaixo (bloco destruido, tabua que caiu), volta a cair
+                if (Ter.StandAt(c.X, c.Y + 5) || Ter.StandAt(c.X - 3, c.Y + 5) || Ter.StandAt(c.X + 3, c.Y + 5)) continue;
+                c.Rest = false; c.VY = 0; c.Spin = 0;
+                c.VX = MathF.Sign(c.Angle * c.Facing) * 0.01f;      // ao pousar de novo, mantem a mesma pose
+            }
             c.VY += K.GRAV * dt;
             c.Angle += c.Spin * dt;
             if (c.IsFlyer && !c.Beast && fx.Next(3) == 0) AddPart(PKind.Smoke, c.X, c.Y, 0, -10, 0.6f, 2, SmokeDark);

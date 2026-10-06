@@ -57,7 +57,18 @@ public static class DesignExport
         // homem-bomba: colete de dinamite vermelho e detonador na mao
         if (k == EnemyKind.Bomber) { l.Wpn = 9; l.Gun = Hex(0x505058); l.Accent = Red; l.Shirt = Hex(0xb8281c); }
         // escudeiro: escudo alto da cor do aco do cenario, faixa na cor de destaque
-        if (k == EnemyKind.Shield) { l.Wpn = 11; l.Gun = Col.Lerp(e.Steel, Hex(0x34404e), 0.4f); l.Shirt = Mul(e.EShirt, 0.85f); }
+        if (k == EnemyKind.Shield)
+        {
+            l.Wpn = 11; l.Shirt = Mul(e.EShirt, 0.85f);
+            l.Gun = e.Style switch
+            {
+                BgStyle.Jungle => Hex(0x6a7458),      // chapa de aco pintada
+                BgStyle.Dino => Hex(0x9a7444),        // couro esticado
+                BgStyle.Medieval => Hex(0x8a5a2e),    // escudo de madeira
+                BgStyle.City => Hex(0x4a5868),        // escudo de choque da policia
+                _ => Hex(0x3ab0e0),                   // escudo de energia
+            };
+        }
         // granadeiro: granada verde na mao e cinto de granadas
         if (k == EnemyKind.Grenadier)
         {
@@ -682,9 +693,24 @@ public static class DesignExport
             if (z > a) Rect(a, py, z - a, 1, c);
         }
         Rect(x, y, T, T, b);
-        if (st is BgStyle.City or BgStyle.Medieval)
+        if (st == BgStyle.City)
         {
-            // telhas em escamas, fileiras desencontradas: brilho em cima, arco escuro embaixo
+            // telha colonial (canal e capa): colunas arredondadas com sombra onde uma telha cobre a outra
+            for (int i = 0; i < T; i++)
+            {
+                int k = i % 4;
+                var c = k == 0 ? l : k == 1 ? Mul(b, 1.1f) : k == 2 ? b : d;
+                Rect(x + i, y, 1, T, c);
+            }
+            foreach (int oy in new[] { 4, 9, 14 })
+            {
+                Rect(x, y + oy, T, 1, Mul(d, 0.85f));
+                for (int i = 0; i < T; i += 4) Rect(x + i, y + oy - 1, 2, 1, Mul(l, 1.05f));
+            }
+        }
+        else if (st == BgStyle.Medieval)
+        {
+            // ardosia em escamas, fileiras desencontradas: brilho em cima, arco escuro embaixo
             for (int band = 0; band < 3; band++)
             {
                 int sy = y + 1 + band * 5, off = band % 2 == 0 ? 0 : 2;
@@ -1712,13 +1738,15 @@ public static class DesignExport
     const string Readme = """
 # Pasta de arte do Jackass Run
 
+> As variaveis de cada heroi (velocidade, dano, tiro, especial...) ficam no arquivo **HeroConfig.cs**, na pasta do projeto.
+
 Tudo aqui e PNG comum: edite no Aseprite, Photoshop, Krita, Piskel, LibreSprite...
 - O jogo le esta pasta ao abrir. Com o jogo aberto, aperte **F5** para recarregar a arte.
 - Apague um arquivo para o jogo gerar de novo a versao original.
 - Mantenha o tamanho das imagens e das celulas. Fundo transparente = vazio.
 - Desenhe tudo **olhando para a direita**: o jogo espelha sozinho.
 
-## sprites/herois e sprites/inimigos (soldado, bazuqueiro, brutamontes)
+## sprites/herois e sprites/inimigos (soldado, bazuqueiro, brutamontes, faca, homem_bomba, escudeiro, granadeiro, atirador, lanca_chamas)
 Folha de 6 colunas x 5 linhas, celulas de **32x26**. Os pes ficam no pixel **(14, 24)** de cada celula
 (centro do corpo, chao logo abaixo). Corpos girados ao morrer giram em torno de (14, 15).
 
@@ -1736,10 +1764,16 @@ Os prisioneiros nas jaulas usam a folha do heroi correspondente.
 ## sprites/inimigos/*_voador.png
 4 quadros de 32x24 (bater de asas), centro do corpo em (16, 12).
 
+## sprites/inimigos/*_cao.png
+6 quadros de 24x16, pes no pixel (12, 15), olhando para a direita: 0 parado, 1-4 correndo, 5 salto (bote).
+Cada cenario tem o seu: pastor alemao (selva), raptor (jurassico), lobo (medieval), rottweiler (cidade) e
+cao-robo (futuro).
+
 ## sprites/inimigos/*_torreta.png
 4 quadros de 32x16, base no pixel (12, 15): 0 luz acesa, 1 luz apagada, 2 e 3 = mesmo com recuo do tiro.
 
 ## sprites/objetos
+- **refem.png**: mesmo formato das folhas de personagem (o refem usa as linhas Parado e Comemorando = maos para cima, e Correndo ao fugir).
 - **barril.png**: 2 quadros 16x16, base em (8, 15): normal e piscando (prestes a explodir).
 - **glorb.png**: 4 quadros 16x16, centro (8, 8).
 - **jaula.png**: 2 quadros 32x48, base em (16, 47) (bandeira balancando). O prisioneiro e desenhado atras.
@@ -1764,5 +1798,59 @@ Nada tem contorno preto: as formas sao definidas so pelas cores e pelo sombreame
   na horizontal. A borda direita deve encaixar na esquerda.
 
 Efeitos (fogo, fumaca, sangue, faiscas, brilhos, estrelas) sao gerados pelo codigo.
+
+## Animacoes soltas dos herois (opcional)
+
+Em vez de editar a folha `sprites/herois/NOME.png`, pode desenhar uma animacao frame a frame numa pasta:
+
+    sprites/herois/batman/running/running0000.png, running0001.png, ...
+
+- Um PNG por frame, todos do mesmo tamanho (ex.: 32x32), tocados por ordem alfabetica.
+- O heroi olha para a DIREITA. Os pes ficam centrados na horizontal; a linha mais baixa desenhada e o chao.
+- Fundo: transparente, ou uma cor solida (a cor do pixel do canto superior esquerdo vira transparente).
+- Pastas aceites: stop (parado), running (a correr), jump, fall, climb, dash, hurt, cheer, tumble.
+  A que nao existir continua a usar a folha. F5 recarrega.
+- Arma principal: um PNG na pasta armour/ do heroi (ex.: sprites/herois/batman/armour/shuriken.png) substitui o
+  projetil padrao desse heroi. A imagem e desenhada centrada no projetil e gira depois de lancada
+  (velocidade em Tune.WeaponSpin, graus por segundo). Fundo transparente.
+
+## tiles/ponte.png, escada.png, concreto.png e parede.png
+
+- ponte.png (64x32): linha de cima = corrimao de corda, desenhado no tile ACIMA da tabua
+  (meio, poste da ponta esquerda, poste da ponta direita). Linha de baixo = tabua inteira e tabua estragada.
+  So os 5px de cima da tabua contam como piso / alvo dos tiros.
+- escada.png (32x16): escada (a segunda celula esta reservada). O topo da escada serve de piso. Escadas sao indestrutiveis.
+- concreto.png (16x32): ponte de concreto. Celula de cima = tabuleiro; celula de baixo = pilar.
+- parede.png (80x32): fundo de dentro das casas, uma coluna por era (selva, jurassico, medieval, cidade, futuro).
+  Linha de cima = parede lisa; linha de baixo = parede com janela (usada na fileira de cima da sala).
+
+## tiles/telhado.png
+- 64x80: uma linha por era (selva, jurassico, medieval, cidade, futuro), celulas de 16x16.
+- Colunas: 0 ponta esquerda (beiral), 1 meio, 2 ponta direita, 3 enfeite desenhado no bloco ACIMA do telhado
+  (chamine, ossos, antena de TV, parabolica), que aparece sozinho em alguns blocos do meio.
+- Na cidade e telha colonial de barro; no medieval, ardosia; na selva, palha; no jurassico, folhas; no futuro,
+  painel solar.
+
+## sprites/objetos/paraquedas.png
+- paraquedas.png (24x18): copula dos paraquedistas; o ponto onde as cordas se juntam fica no fundo, ao centro
+  (e ali que fica a cabeca do soldado).
+
+## sprites/objetos/carro.png
+- carro.png (96x16): carros destruidos da cidade, celulas de 32x16 com a base em (16, 15):
+  0 carcaca queimada (solta fumaca), 1 taxi branco batido, 2 carro vermelho amassado.
+
+## Era "cidade" (Sao Paulo em caos)
+- tiles/cidade.png segue o mesmo formato das outras eras. A linha 0 e a calcada portuguesa (ondas pretas e
+  brancas) com guia; os enfeites da linha 4 sao saco de lixo, cone e papeis/garrafa.
+- cenarios/cidade/: ceu.png (azul profundo, nuvens de entardecer, fumaca), fundo.png (skyline anil) e
+  meio.png (predios, arvores, muro com pixo e postes). Nas camadas, a rua fica na linha 124.
+
+## tiles/fundo_<era>.png (paredes de fundo)
+- 64x32, celulas de 16x16. Linha 0 = terra/caverna (aparece em tuneis, cavernas e buracos cavados no chao);
+  linha 1 = parede de construcao (atras de escadas, torres e bunkers; fica no lugar quando os blocos da frente
+  sao destruidos). 4 variacoes por linha, sorteadas por posicao.
+- Use tons mais escuros e frios que os blocos da frente. O jogo acrescenta sozinho a sombra de contato
+  junto aos blocos solidos vizinhos.
+- Toda escada tem parede de fundo atras (terra se estiver dentro do chao, construcao fora dele).
 """;
 }

@@ -220,6 +220,7 @@ public sealed partial class Game
         float dt = K.DT;
         e.VY = MathF.Min(e.VY + K.GRAV * dt, 400);
         bool knife = e.Kind == EnemyKind.Knife;
+        bool air = NavAir(e);                                // no meio de um pulo/escalada de navegacao
 
         if (e.FuseT >= 0)
         {
@@ -239,9 +240,8 @@ public sealed partial class Game
             }
             else if (!SeekLadder(e, ty + 8, knife ? 75 : 50))
             {
-                e.VX = e.Facing * (knife ? 88 : 54);
-                // pula obstaculos de 1 bloco
-                if (e.OnGround && Ter.SolidAt(e.X + e.Facing * (e.HalfW + 2), e.Y - 4)) e.VY = -215;
+                // corre ate o heroi: pula caixas e degraus, salta buracos, desce de beiradas (a faca escala paredes)
+                Chase(e, tx, ty + 10, knife ? 88 : 54);
                 if (!knife && MathF.Abs(tx - e.X) < 26 && MathF.Abs(ty - (e.Y - 8)) < 22)
                 {
                     e.FuseT = 0.6f;
@@ -261,6 +261,7 @@ public sealed partial class Game
             MaybeLadder(e);
         }
 
+        if (air && e.FuseT < 0) e.VX = e.NavVX;
         bool was = e.OnGround;
         e.LandT -= dt;
         e.OnGround = MoveBody(ref e.X, ref e.Y, ref e.VX, ref e.VY, e.HalfW - 0.5f, e.Height - 2, out _);

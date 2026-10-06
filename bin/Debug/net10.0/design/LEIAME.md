@@ -8,7 +8,7 @@ Tudo aqui e PNG comum: edite no Aseprite, Photoshop, Krita, Piskel, LibreSprite.
 - Mantenha o tamanho das imagens e das celulas. Fundo transparente = vazio.
 - Desenhe tudo **olhando para a direita**: o jogo espelha sozinho.
 
-## sprites/herois e sprites/inimigos (soldado, bazuqueiro, brutamontes, faca, homem_bomba)
+## sprites/herois e sprites/inimigos (soldado, bazuqueiro, brutamontes, faca, homem_bomba, escudeiro, granadeiro, atirador, lanca_chamas)
 Folha de 6 colunas x 5 linhas, celulas de **32x26**. Os pes ficam no pixel **(14, 24)** de cada celula
 (centro do corpo, chao logo abaixo). Corpos girados ao morrer giram em torno de (14, 15).
 
@@ -25,6 +25,11 @@ Os prisioneiros nas jaulas usam a folha do heroi correspondente.
 
 ## sprites/inimigos/*_voador.png
 4 quadros de 32x24 (bater de asas), centro do corpo em (16, 12).
+
+## sprites/inimigos/*_cao.png
+6 quadros de 24x16, pes no pixel (12, 15), olhando para a direita: 0 parado, 1-4 correndo, 5 salto (bote).
+Cada cenario tem o seu: pastor alemao (selva), raptor (jurassico), lobo (medieval), rottweiler (cidade) e
+cao-robo (futuro).
 
 ## sprites/inimigos/*_torreta.png
 4 quadros de 32x16, base no pixel (12, 15): 0 luz acesa, 1 luz apagada, 2 e 3 = mesmo com recuo do tiro.
@@ -80,6 +85,13 @@ Em vez de editar a folha `sprites/herois/NOME.png`, pode desenhar uma animacao f
 - concreto.png (16x32): ponte de concreto. Celula de cima = tabuleiro; celula de baixo = pilar.
 - parede.png (80x32): fundo de dentro das casas, uma coluna por era (selva, jurassico, medieval, cidade, futuro).
   Linha de cima = parede lisa; linha de baixo = parede com janela (usada na fileira de cima da sala).
+
+## tiles/telhado.png
+- 64x80: uma linha por era (selva, jurassico, medieval, cidade, futuro), celulas de 16x16.
+- Colunas: 0 ponta esquerda (beiral), 1 meio, 2 ponta direita, 3 enfeite desenhado no bloco ACIMA do telhado
+  (chamine, ossos, antena de TV, parabolica), que aparece sozinho em alguns blocos do meio.
+- Na cidade e telha colonial de barro; no medieval, ardosia; na selva, palha; no jurassico, folhas; no futuro,
+  painel solar.
 
 ## sprites/objetos/paraquedas.png
 - paraquedas.png (24x18): copula dos paraquedistas; o ponto onde as cordas se juntam fica no fundo, ao centro

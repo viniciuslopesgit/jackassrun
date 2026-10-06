@@ -30,6 +30,8 @@ public sealed class Enemy
     public int LadderDir, LadderCol = int.MinValue;   // -1 sobe, 1 desce; ultima coluna de escada avaliada
     public float AimT, AimX, AimY;      // mira (atirador de elite), preparo da granada, jato (lanca-chamas), salto (cao)
     public float TurnT;                 // escudeiro: tempo com o alvo nas costas antes de virar
+    public float NavT, NavVX;           // pulo de navegacao (subindo num obstaculo, saltando um buraco): empurrao no ar
+    public bool NavClimb;               // escalando uma parede (inimigo com faca)
     public Enemy Clone() => (Enemy)MemberwiseClone();
 
     public float HalfW => Kind switch { EnemyKind.Brute => 6, EnemyKind.Turret => 7, EnemyKind.Flyer => 7, EnemyKind.Dog => 6, _ => 4 };

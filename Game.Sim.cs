@@ -59,6 +59,7 @@ static class Tune
     public const float DogSee = 150;            // cao: distancia em que percebe o heroi
     public const float DogGrowl = 0.35f;        // cao: rosnado antes de correr (aviso)
     public const float DogSpeed = 118;          // cao: velocidade da corrida
+    public const float EnemyClimb = 70;         // velocidade do inimigo com faca escalando paredes (px/s)
 }
 
 public sealed partial class Game
@@ -716,6 +717,7 @@ public sealed partial class Game
         e.VY = MathF.Min(e.VY + K.GRAV * dt, 400);
         bool hidden = InHiddenRoom(e.X, e.Y - 8);            // numa sala escura nao enxerga o heroi
         if (hidden) e.Alerted = false;
+        bool air = NavAir(e);                                // no meio de um pulo para subir/saltar
 
         if (e.AimT > 0 && e.Kind is EnemyKind.Flamer or EnemyKind.Grenadier)
         {
@@ -757,8 +759,7 @@ public sealed partial class Game
             // granadeiro: joga por cima de coberturas e em outras alturas (nao precisa de linha reta)
             Face(e, gx);
             e.VX = 0;
-            if (MathF.Abs(gx - e.X) > 120 && e.OnGround && !Ter.SolidAt(e.X + e.Facing * 8, e.Y - 4) && Ter.StandAt(e.X + e.Facing * 8, e.Y + 2))
-                e.VX = e.Facing * walk;
+            if (MathF.Abs(gx - e.X) > 120) Chase(e, gx, gy + 10, walk);
             e.FireT -= dt;
             if (e.FireT <= 0 && S.ShotCD <= 0 && OnScreen(e))
             {
@@ -767,27 +768,22 @@ public sealed partial class Game
                 e.FireT = Tune.GrenadeRest + S.Rng.Range(0, 1f);
             }
         }
-        else
+        else if (FindTarget(e.X, gunY, Tune.ShootRange, 110, out float tx, out float ty))
         {
-            // alvo noutra altura (nao da para acertar com tiro reto): vai pela escada mais proxima
-            bool other = FindTarget(e.X, gunY, Tune.ShootRange, 110, out float lx, out float ly) && MathF.Abs(ly - gunY) >= 20;
-            if (other && SeekLadder(e, ly + 7, walk * 1.6f))
+            Face(e, tx);
+            e.VX = 0;
+            if (MathF.Abs(ty - gunY) >= 20)
             {
-                e.FireT = MathF.Max(e.FireT, 0.4f);
+                // alvo noutra altura (nao da para acertar com tiro reto): vai pela escada mais proxima ou tenta
+                // chegar la pulando degraus/caixas e descendo de beiradas; sem caminho, espera virado para ele
+                if (SeekLadder(e, ty + 7, walk * 1.6f)) e.FireT = MathF.Max(e.FireT, 0.4f);
+                else if (!Chase(e, tx, ty + 10, walk * 1.4f)) { e.VX = 0; Face(e, tx); }
             }
-            else if (other && !FindTarget(e.X, gunY, Tune.ShootRange, 48, out _, out _))
+            else
             {
-                e.VX = 0;      // alvo noutra altura e sem escada por perto: continua alerta, esperando
-                Face(e, lx);
-            }
-            else if (FindTarget(e.X, gunY, Tune.ShootRange, 48, out float tx, out float ty))
-            {
-                Face(e, tx);
-                e.VX = 0;
-                // avanca para encurtar a distancia (brutamontes, escudeiro e lanca-chamas chegam mais perto)
+                // mesma altura: avanca para encurtar a distancia (brutamontes, escudeiro e lanca-chamas chegam mais perto)
                 float near = e.Kind switch { EnemyKind.Brute => 60, EnemyKind.Shield => 56, EnemyKind.Flamer => 40, _ => Tune.AdvanceRange };
-                if (MathF.Abs(tx - e.X) > near && e.OnGround && !Ter.SolidAt(e.X + e.Facing * 8, e.Y - 4) && Ter.StandAt(e.X + e.Facing * 8, e.Y + 2))
-                    e.VX = e.Facing * walk * 1.3f;
+                if (MathF.Abs(tx - e.X) > near) Chase(e, tx, ty + 10, walk * 1.3f);
                 e.FireT -= dt;
                 // so atira em linha reta: espera o alvo estar mais ou menos na altura da arma
                 bool facing = MathF.Sign(tx - e.X) == e.Facing;          // o escudeiro de costas nao atira
@@ -830,11 +826,12 @@ public sealed partial class Game
                     }
                 }
             }
-            else
-            {
-                e.Alerted = false; e.StateT = 0;
-            }
         }
+        else
+        {
+            e.Alerted = false; e.StateT = 0;
+        }
+        if (air) e.VX = e.NavVX;
         bool was = e.OnGround;
         e.LandT -= dt;
         e.OnGround = MoveBody(ref e.X, ref e.Y, ref e.VX, ref e.VY, e.HalfW - 0.5f, e.Height - 2, out _);

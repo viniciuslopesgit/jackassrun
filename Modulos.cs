@@ -13,7 +13,7 @@ public enum Ato
 }
 
 /// <summary>Um pedaco de mapa desenhado a mao (a "base"). O jogo monta cada trecho de 40 m com um modulo de
-/// 20 colunas ou dois de 10, e sorteia as VARIACOES em cima da base (caixas, grupos de blocos, inimigos, espelho,
+/// 20 colunas (na maioria das vezes) ou dois de 10, e sorteia as VARIACOES em cima da base (caixas, grupos de blocos, inimigos, espelho,
 /// altura do chao). Assim o mapa nunca e totalmente aleatorio: tem estrutura de level design, mas muda sempre.</summary>
 public sealed class Modulo
 {
@@ -22,6 +22,7 @@ public sealed class Modulo
     public int Peso = 10;              // chance relativa de ser escolhido (maior = aparece mais)
     public int Intensidade = 1;        // 0 calmo ... 5 climax; depois de um modulo intenso vem um respiro
     public bool Espelhar;              // pode aparecer espelhado (de tras para a frente)
+    public bool Recompensa;            // premio (ex.: jaula): aparece quase so logo depois de um trecho intenso
     public BgStyle[]? Cenarios;        // so nestes cenarios (null = todos)
     public string[] Mapa = Array.Empty<string>();
 
@@ -126,16 +127,16 @@ public static class Modulos
     public static readonly Modulo[] Lista =
     {
         // CAMPO ABERTO: Morrinho, pilha de caixas e premios. Bom para comecar o level.
-        new() { Nome = "CAMPO ABERTO", Atos = Ato.Chegada | Ato.Arredores, Peso = 10, Intensidade = 1, Espelhar = true, Mapa = new[]
+        new() { Nome = "CAMPO ABERTO", Atos = Ato.Chegada, Peso = 10, Intensidade = 1, Espelhar = true, Mapa = new[]
         {
             "....................",
             "....................",
             "....................",
             "....................",
             "....................",
-            "......oo.......c....",
-            ".ooo.....e.....CC...",
-            ".....#######...CC.e.",
+            "......oo.......ca...",
+            ".ooo..e..e.e...CC...",
+            "..e..#######.e.CC.e.",
             "####################",
             "####################",
             "####################",
@@ -147,16 +148,16 @@ public static class Modulos
         }},
 
         // DEGRAUS: Terracos de 4 blocos subindo e descendo, com vigia no alto.
-        new() { Nome = "DEGRAUS", Atos = Ato.Chegada | Ato.Arredores, Peso = 8, Intensidade = 1, Espelhar = true, Mapa = new[]
+        new() { Nome = "DEGRAUS", Atos = Ato.Chegada, Peso = 8, Intensidade = 1, Espelhar = true, Mapa = new[]
         {
             "....................",
             "....................",
             "....................",
             "....................",
-            "........e.o..o......",
-            "........####..a.....",
-            ".....o..########....",
-            "....############.x..",
+            "........e.oe.o......",
+            "........####e.a.....",
+            ".....oe.########....",
+            ".e..############.xe.",
             "####################",
             "####################",
             "####################",
@@ -177,9 +178,9 @@ public static class Modulos
             "....................",
             "....................",
             "....................",
-            ".......ooo....c..a..",
-            "............########",
-            "...e..##############",
+            ".......ooo..e.ce.a..",
+            ".........e..########",
+            ".e.e..##############",
             "####################",
             "####################",
             "####################",
@@ -189,16 +190,16 @@ public static class Modulos
         }},
 
         // PLATAFORMAS: Abismo com plataformas flutuantes. As vezes (grupo 1) ha uma rede de tijolos embaixo.
-        new() { Nome = "PLATAFORMAS", Atos = Ato.Chegada | Ato.Arredores | Ato.Subsolo, Peso = 8, Intensidade = 2, Mapa = new[]
+        new() { Nome = "PLATAFORMAS", Atos = Ato.Chegada | Ato.Arredores | Ato.Subsolo, Peso = 6, Intensidade = 2, Mapa = new[]
         {
             "....................",
             "....................",
-            "....................",
+            ".........w..........",
             "....................",
             "............e.o.....",
             ".........o.SBS......",
-            "....o...............",
-            "......SBS.........a.",
+            "....o..e............",
+            ".e....SBS.......e.a.",
             "####............####",
             "####............####",
             "####111111111111####",
@@ -212,14 +213,14 @@ public static class Modulos
         // TORRE DE VIGIA: Torre com escada e mirante; barris embaixo derrubam tudo.
         new() { Nome = "TORRE DE VIGIA", Atos = Ato.Chegada | Ato.Arredores | Ato.Posto, Peso = 8, Intensidade = 2, Espelhar = true, Mapa = new[]
         {
+            "...............w....",
             "....................",
-            "....................",
-            "...........A........",
+            ".......a...A........",
             "......BBBHBBB.......",
             "........BHB.........",
             "........BHB.........",
             "........BHB......Cc.",
-            "...e...xBHBx...e.CC.",
+            ".e.e...xBHBx.e.e.CCe",
             "####################",
             "####################",
             "####################",
@@ -231,37 +232,37 @@ public static class Modulos
         }},
 
         // CASA NO MORRO: O esboco: sobrado com escada interna, valeta com tunel por baixo das caixas e escada que sobe para dentro da casa da direita.
-        new() { Nome = "CASA NO MORRO", Atos = Ato.Arredores | Ato.Posto, Peso = 10, Intensidade = 3, Mapa = new[]
+        new() { Nome = "CASA NO MORRO", Atos = Ato.Arredores | Ato.Posto, Peso = 12, Intensidade = 3, Mapa = new[]
         {
             "....................",
             "....................",
             "TTTTTT..............",
             "B,,,,b..............",
-            "B,e,,b..............",
+            "B,e,eb.........a....",
             "BHBBBB......TTTTTTTT",
             "DH,,,D......D,,,,,,D",
-            "DH,e,D..c...D,,e,r,D",
+            "DH,eeD..c.e.D,ee,r,D",
             "######_CCCC.#H######",
             "######_CCCC.#H######",
             "######_######H######",
             "######_______H######",
-            "######_o_e_o_H######",
+            "######_o_e_oeH######",
             "####################",
             "####################",
             "####################",
         }},
 
         // VILA: Duas casas com telhado e uma rua no meio (carro na cidade).
-        new() { Nome = "VILA", Atos = Ato.Arredores, Peso = 9, Intensidade = 2, Mapa = new[]
+        new() { Nome = "VILA", Atos = Ato.Arredores, Peso = 11, Intensidade = 2, Mapa = new[]
         {
             "....................",
             "....................",
             "....................",
             "....................",
-            "....a...........a...",
+            "....a.e......e..a...",
             "TTTTTTTT....TTTTTTTT",
             ".D,,,,D......D,,,,D.",
-            ".D,e,rD.!.v.eD,e,oD.",
+            ".D,e,rD.!ev.eD,eeoDe",
             "####################",
             "####################",
             "####################",
@@ -273,16 +274,16 @@ public static class Modulos
         }},
 
         // PONTE DE MADEIRA: Abismo com ponte de tabuas (caem depois de pisadas) e posto do outro lado.
-        new() { Nome = "PONTE DE MADEIRA", Atos = Ato.Arredores | Ato.Posto, Peso = 8, Intensidade = 3, Cenarios = new[] { BgStyle.Jungle, BgStyle.Dino, BgStyle.Medieval, BgStyle.Future }, Mapa = new[]
+        new() { Nome = "PONTE DE MADEIRA", Atos = Ato.Arredores | Ato.Posto, Peso = 10, Intensidade = 3, Cenarios = new[] { BgStyle.Jungle, BgStyle.Dino, BgStyle.Medieval, BgStyle.Future }, Mapa = new[]
         {
             "....................",
             "....................",
             "....................",
-            "....................",
+            ".........w..........",
             "....................",
             "......o.o.o.........",
             "................c...",
-            ".....!.e..e....xC.a.",
+            "..e..!.e..e.e..xC.ae",
             "####==========######",
             "####..........######",
             "####..........######",
@@ -299,11 +300,11 @@ public static class Modulos
             "....................",
             "....................",
             "....................",
+            "......w.............",
             "....................",
             "....................",
             "....................",
-            "....................",
-            ".....e..^v..e.......",
+            ".e...e..^v..e..e..e.",
             "###--------------###",
             "###...|......|...###",
             "###...|......|...###",
@@ -324,7 +325,7 @@ public static class Modulos
             "....................",
             "..............ac....",
             ".........TTTT.CC....",
-            "....!xxe.;E;;.CC.e..",
+            "....!xxee;E;e.CC.e.e",
             "####################",
             "####################",
             "####################",
@@ -336,18 +337,18 @@ public static class Modulos
         }},
 
         // PREDIO: Predio de 3 andares com escadas alternadas; atirador no telhado e prisioneiro no ultimo andar.
-        new() { Nome = "PREDIO", Atos = Ato.Arredores | Ato.Posto, Peso = 7, Intensidade = 4, Mapa = new[]
+        new() { Nome = "PREDIO", Atos = Ato.Arredores | Ato.Posto, Peso = 8, Intensidade = 4, Mapa = new[]
         {
-            "........A...........",
+            "........A.....a.....",
             "...TTTTTTTTTTTTTT...",
             "....B,,,,,,,,,,b....",
-            "....B,,,,,a,,$,B....",
+            "....B,e,,,a,,$,B....",
             "....BHBBBBBBBBBB....",
             "....bH,,,,,,,,,B....",
-            "....BH,,,e,,r,,b....",
+            "....BH,e,e,,r,,b....",
             "....BBBBBBBBBBHB....",
             "....D,,,,,,,,,HD....",
-            "..x.D,,e,,e,,,HD..e.",
+            ".ex.D,,e,,e,e,HD..e.",
             "####################",
             "####################",
             "####################",
@@ -368,13 +369,13 @@ public static class Modulos
             "....................",
             "....................",
             "....................",
-            "........e.........a.",
+            ".e......e...e.....a.",
             "###__###########H###",
             "###__###########H###",
             "###__##_______##H###",
             "###_____________H###",
             "###____o_o_o____H###",
-            "###__e___e___$__H###",
+            "###__e___e_e_$_eH###",
             "####################",
             "####################",
         }},
@@ -389,11 +390,11 @@ public static class Modulos
             "....................",
             "....................",
             ".........c..........",
-            "......^.aCa..e......",
+            "...e..^.aCa..e..e...",
             "#H################H#",
             "#H################H#",
             "#H________________H#",
-            "#H__o__o__e__o__$_H#",
+            "#H__o_eo__e__oe_$_H#",
             "####################",
             "####################",
             "####################",
@@ -410,12 +411,12 @@ public static class Modulos
             "....................",
             ".TTTTT..............",
             ".D;;;D............c.",
-            ".D;e;D..e......x.Ca.",
+            ".D;e;D..e..e..ex.Ca.",
             "###H############H###",
             "###H############H###",
             "###H############H###",
             "###H____________H###",
-            "###H__o_x_e_o$__H###",
+            "###H_eo_x_e_o$_eH###",
             "####################",
             "####################",
             "####################",
@@ -431,10 +432,10 @@ public static class Modulos
             "....................",
             "....................",
             "..........c.........",
-            "...cC....CC.....a...",
+            ".e.cC....CCe....a.e.",
             "#####___####___#####",
             "#####___####___#####",
-            "#####e__####_e_#####",
+            "#####e_e####_ee#####",
             "####################",
             "####################",
             "####################",
@@ -449,10 +450,10 @@ public static class Modulos
             "....................",
             "....................",
             "....................",
-            "..........M.a.......",
+            "........a.M.a.......",
             ".......SSSSSSSH.....",
             ".......D,,,,,BH.....",
-            "...11.xD,e,e,BHx.e..",
+            ".e.11.xD,e,e,BHx.e.e",
             "####################",
             "####################",
             "####################",
@@ -468,12 +469,12 @@ public static class Modulos
         {
             "....................",
             "....................",
-            "....A.a.............",
+            "..e.A.a.............",
             ".HBBBBB.............",
-            ".HB:::B.......M.a...",
+            ".HB:::B......aM.a...",
             ".HB:::B......SSSS...",
             ".HD:::D.^...cBBBB...",
-            ".HD:x:D.ee.eCBBBB.$.",
+            ".HD:xeD.eeeeCBBBB.$e",
             "####################",
             "####################",
             "####################",
@@ -491,10 +492,10 @@ public static class Modulos
             "...........A........",
             ".........TTTTTTTTT..",
             ".........B,,,,,,,b..",
-            ".........B,,a,$,,b..",
+            ".........Be,a,$,eb..",
             ".........BBBBBBBHB..",
             ".....cC..D,,,,,,HD..",
-            ".^...CCeeD,e,g,,HD..",
+            ".^.e.CCeeD,e,g,eHDe.",
             "##H########H########",
             "##H________H########",
             "##Ho_o_o_e_H########",
@@ -536,7 +537,7 @@ public static class Modulos
             "..........",
             ".....o....",
             "....o.o...",
-            ".........e",
+            ".e.......e",
             "####...###",
             "####...###",
             "####...###",
@@ -555,9 +556,9 @@ public static class Modulos
             "..........",
             "..........",
             "..........",
-            "....c.....",
+            "...ec.....",
             "...CCc....",
-            "...CCC..e.",
+            ".e.CCC..e.",
             "##########",
             "##########",
             "##########",
@@ -569,7 +570,7 @@ public static class Modulos
         }},
 
         // JAULA: Recompensa: prisioneiro na jaula.
-        new() { Nome = "JAULA", Atos = Ato.Arredores | Ato.Subsolo | Ato.Posto, Peso = 4, Intensidade = 0, Mapa = new[]
+        new() { Nome = "JAULA", Atos = Ato.Arredores | Ato.Subsolo | Ato.Posto, Peso = 6, Intensidade = 0, Recompensa = true, Mapa = new[]
         {
             "..........",
             "..........",
@@ -578,7 +579,7 @@ public static class Modulos
             "..........",
             "..........",
             ".o.o......",
-            "...$....e.",
+            "...$..e.e.",
             "##########",
             "##########",
             "##########",
@@ -599,7 +600,7 @@ public static class Modulos
             "..........",
             "..........",
             "..........",
-            "...xx.ee..",
+            ".e.xx.eee.",
             "##########",
             "##########",
             "##########",
@@ -617,10 +618,10 @@ public static class Modulos
             "..........",
             "..........",
             "..........",
-            ".....a....",
+            "..e..a....",
             ".TTTTTTTT.",
             "..D,,,,D..",
-            "..De,r,D..",
+            "..De,reD.e",
             "##########",
             "##########",
             "##########",
@@ -639,9 +640,9 @@ public static class Modulos
             "..........",
             "..........",
             "..........",
-            ".......e..",
+            ".......e.e",
             ".....#####",
-            ".....#####",
+            "..e..#####",
             "##########",
             "##########",
             "##########",
@@ -662,7 +663,7 @@ public static class Modulos
             "..........",
             "..........",
             "..........",
-            "....e.....",
+            ".e..e...e.",
             "###====###",
             "###....###",
             "###....###",
@@ -681,9 +682,9 @@ public static class Modulos
             "..........",
             "..........",
             "..........",
-            "..........",
+            "......a...",
             "......Cc..",
-            "......CCa.",
+            "..e...CCa.",
             "##########",
             "##########",
             "##########",

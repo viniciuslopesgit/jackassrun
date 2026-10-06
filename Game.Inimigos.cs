@@ -70,7 +70,7 @@ public sealed partial class Game
     {
         float x = e.X + e.Facing * 4, y = e.Y - 17;
         float dx = tx - x, dy = ty - 4 - y;
-        float t = Math.Clamp(MathF.Abs(dx) / 120f, 0.5f, 1.1f);
+        float t = Math.Clamp(MathF.Abs(dx) / 140f, 0.5f, 1f);
         float vx = Math.Clamp(dx / t, -170, 170);
         float vy = Math.Clamp((dy - 0.5f * Tune.GrenadeGrav * t * t) / t, -330, 60);
         var b = AddBullet(BulletKind.EGrenade, x, y, vx, vy, false, e.Id);
@@ -180,6 +180,7 @@ public sealed partial class Game
         if (EnterTick(e)) return;
         e.VY = MathF.Min(e.VY + K.GRAV * dt, 400);
         if (e.AimT > 0) e.AimT -= dt;                                  // recarga do salto
+        bool air = NavAir(e);
         bool hidden = InHiddenRoom(e.X, e.Y - 6);
         if (!e.Alerted)
         {
@@ -207,28 +208,18 @@ public sealed partial class Game
         {
             if (e.OnGround)
             {
-                e.Facing = tx < e.X ? -1 : 1;
-                e.VX = e.Facing * Tune.DogSpeed;
-                float ax = e.X + e.Facing * (e.HalfW + 2);
-                int col = (int)MathF.Floor(ax / K.T);
-                if (Ter.SolidAt(ax, e.Y - 4)) e.VY = -215;                  // pula obstaculos
-                else if (!Ter.StandAt(ax, e.Y + 2))
+                // corre ate o heroi: pula obstaculos, salta buracos e desce de beiradas
+                Chase(e, tx, ty + 10, Tune.DogSpeed);
+                if (MathF.Abs(tx - e.X) < 40 && MathF.Abs(ty - (e.Y - 6)) < 28 && e.AimT <= 0)
                 {
-                    // beirada: salta o buraco se houver chao logo adiante, senao espera
-                    bool land = false;
-                    for (int k = 1; k <= 3 && !land; k++) land = Ter.Surface(col + e.Facing * k) >= 0;
-                    if (land) { e.VY = -200; e.VX = e.Facing * 150; }
-                    else e.VX = 0;
-                }
-                if (MathF.Abs(tx - e.X) < 46 && MathF.Abs(ty - (e.Y - 6)) < 28 && e.AimT <= 0)
-                {
-                    e.VY = -170; e.VX = e.Facing * 190; e.AimT = 0.9f;        // bote!
+                    e.VY = -130; e.VX = e.Facing * 160; e.AimT = 0.9f;        // bote baixo, na altura do heroi
                     sfx.Play("alert", 0.8f, 1.1f);
                 }
             }
         }
         else e.Alerted = false;
 
+        if (air && e.AimT <= 0.5f) e.VX = e.NavVX;
         bool was = e.OnGround;
         e.LandT -= dt;
         e.OnGround = MoveBody(ref e.X, ref e.Y, ref e.VX, ref e.VY, e.HalfW - 0.5f, e.Height - 2, out _);
@@ -241,6 +232,121 @@ public sealed partial class Game
             if (Hit(x0, y0, x1, y1, P.X - 3.5f, P.Y - PH, P.X + 3.5f, P.Y)) KillPlayer(e.Id, "MORDIDO");
         }
         if (e.Y > K.ROWS * K.T + 40) e.Dead = true;
+    }
+
+    // ------------------------------------------------------------------ navegacao: perseguir o heroi pelo terreno
+
+    /// <summary>Quantos blocos o inimigo sobe pulando (os pesados sobem 1 a menos).</summary>
+    static int MaxClimb(Enemy e) => e.Kind is EnemyKind.Brute or EnemyKind.Shield
+        ? Math.Max(1, GameConfig.InimigosSobemBlocos - 1) : Math.Max(1, GameConfig.InimigosSobemBlocos);
+
+    /// <summary>Escala paredes de qualquer altura (como o heroi).</summary>
+    static bool Climber(Enemy e) => e.Kind == EnemyKind.Knife;
+
+    bool FreeRows(int col, int r0, int r1)
+    {
+        for (int r = r0; r <= r1; r++) if (Ter.Solid(col, r)) return false;
+        return true;
+    }
+
+    /// <summary>Quantos blocos ate o chao descendo pela coluna (0 = chao no mesmo nivel), ou -1 se for um buraco
+    /// mais fundo que GameConfig.InimigosDescemBlocos (o inimigo nao pula).</summary>
+    int DropDepth(int col, int floorRow)
+    {
+        for (int d = 0; d <= GameConfig.InimigosDescemBlocos; d++)
+        {
+            int r = floorRow + d;
+            if (r >= K.ROWS) break;
+            if (Ter.Solid(col, r) || Ter.Platform(col, r)) return d;
+        }
+        return -1;
+    }
+
+    void NavJump(Enemy e, float vy, float vx, bool climb = false)
+    {
+        e.VY = vy; e.VX = vx; e.NavVX = vx; e.NavT = 0.8f; e.NavClimb = climb; e.OnGround = false;
+    }
+
+    /// <summary>No ar depois de um pulo de navegacao: continua empurrando para o lado (para pousar em cima do
+    /// obstaculo) e, se estiver escalando, sobe pela parede. Retorna true enquanto dura.</summary>
+    bool NavAir(Enemy e)
+    {
+        if (e.NavT <= 0) return false;
+        if (e.OnGround && e.VY >= 0) { e.NavT = 0; e.NavClimb = false; return false; }
+        e.NavT -= K.DT;
+        if (e.NavClimb && Ter.SolidAt(e.X + MathF.Sign(e.NavVX) * (e.HalfW + 1), e.Y - 4))
+        {
+            e.VY = MathF.Min(e.VY, -Tune.EnemyClimb);
+            e.NavT = MathF.Max(e.NavT, 0.15f);
+            if (fx.Next(6) == 0) AddPart(PKind.Pixel, e.X + MathF.Sign(e.NavVX) * 4, e.Y - 4, 0, 10, 0.3f, 1, Hex(0xc8b8a0));
+        }
+        return true;
+    }
+
+    /// <summary>Persegue o alvo pelo terreno: pula caixas, degraus e muros baixos (ate MaxClimb blocos), salta
+    /// buracos pequenos, desce de beiradas para chegar ao heroi e (a faca) escala paredes. (tx, ty) = pes do alvo.
+    /// Retorna false se nao ha como continuar (o inimigo fica parado).</summary>
+    bool Chase(Enemy e, float tx, float ty, float speed)
+    {
+        if (!e.OnGround) return true;
+        if (MathF.Abs(tx - e.X) < 6) { e.VX = 0; return true; }       // logo abaixo/acima do alvo: espera
+        int dir = tx < e.X ? -1 : 1;
+        Face(e, tx);
+        if (e.Facing != dir) { e.VX = 0; return true; }               // escudeiro ainda virando
+        float ax = e.X + dir * (e.HalfW + 2);
+        int col = (int)MathF.Floor(ax / K.T), here = (int)MathF.Floor(e.X / K.T);
+        int floor = (int)MathF.Floor((e.Y + 1) / K.T);               // linha do bloco em que o inimigo pisa
+        bool below = ty > e.Y + 8;
+
+        // obstaculo na frente: mede a altura e pula (ou escala) se der para pousar em cima
+        if (Ter.Solid(col, floor - 1))
+        {
+            int h = 0;
+            while (h < 8 && Ter.Solid(col, floor - 1 - h)) h++;
+            bool landing = FreeRows(col, floor - 2 - h, floor - 1 - h);
+            bool head = FreeRows(here, floor - 2 - h, floor - 2);
+            if (landing && head && h <= MaxClimb(e))
+            {
+                NavJump(e, -MathF.Sqrt(2 * K.GRAV * (h * K.T + 8)), dir * MathF.Max(speed, 45));
+                return true;
+            }
+            if (landing && head && Climber(e))
+            {
+                NavJump(e, -Tune.EnemyClimb, dir * speed, true);
+                return true;
+            }
+            e.VX = 0;
+            return false;
+        }
+
+        // beirada na frente
+        if (!Ter.StandAt(ax, e.Y + 2))
+        {
+            int drop = DropDepth(col, floor);
+            if (below && drop > 0) { e.VX = dir * speed; return true; }        // o heroi esta embaixo: desce
+            // vao: salta se houver onde pousar logo adiante (mesmo nivel, 1 acima ou ate 2 abaixo)
+            if (FreeRows(here, floor - 3, floor - 1))
+                for (int k = 1; k <= 3; k++)
+                {
+                    int c2 = col + dir * k;
+                    for (int dh = 0; dh >= -1; dh--)
+                        foreach (int lr in dh == 0 ? new[] { floor, floor + 1, floor + 2 } : new[] { floor - 1 })
+                        {
+                            if (!(Ter.Solid(c2, lr) || Ter.Platform(c2, lr)) || !FreeRows(c2, lr - 2, lr - 1)) continue;
+                            // impulso so o necessario: sobe ate um pouco acima do ponto de pouso e cai nele
+                            float rise = MathF.Max(14, (floor - lr) * K.T + 14);
+                            float fall = rise - (floor - lr) * K.T;
+                            float airT = MathF.Sqrt(2 * rise / K.GRAV) + MathF.Sqrt(2 * fall / K.GRAV);
+                            NavJump(e, -MathF.Sqrt(2 * K.GRAV * rise), dir * MathF.Max(speed, (k + 1) * K.T / airT + 8));
+                            return true;
+                        }
+                }
+            if (drop > 0 && drop <= MaxClimb(e)) { e.VX = dir * speed; return true; }   // degrau para baixo
+            e.VX = 0;
+            return false;
+        }
+        e.VX = dir * speed;
+        return true;
     }
 
     /// <summary>Quadro da folha do cao: 0 parado, 1-4 correndo, 5 salto.</summary>
