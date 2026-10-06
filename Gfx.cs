@@ -103,6 +103,7 @@ public static partial class Gfx
         switch (e.Style)
         {
             case BgStyle.Jungle: // helidrone
+            case BgStyle.City:   // helicoptero da policia
                 offY = Pivot;
                 P(-6, -3, 12, 6, body); P(-10, -1, 4, 2, body); P(-11, -3 + (f & 1), 2, 2, body);
                 P(-5, -2, 9, 1, Mul(body, 1.3f), true);

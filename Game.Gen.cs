@@ -3,7 +3,7 @@ namespace JackassRun;
 /// <summary>Geracao procedural deterministica por chunk (mesma seed = mesmo chunk),
 /// o que permite regenerar chunks com seguranca depois de rebobinar o tempo.
 ///
-/// Estrutura inspirada no level design do Broforce: cada ERA funciona como uma FASE de 5 chunks com
+/// Estrutura inspirada no level design do Broforce: cada LEVEL tem 5 chunks com
 /// um arco de tensao (chegada calma -> arredores -> subsolo -> posto avancado -> fortaleza). Cada chunk tem
 /// uma PECA CENTRAL obrigatoria do seu ato, recheio sorteado por pesos (sem repetir), um ORCAMENTO de
 /// inimigos (nada de inimigos espalhados a toa), RESPIROS depois de trechos intensos, armadilhas de barris
@@ -25,7 +25,7 @@ public sealed partial class Game
     public const int Ground0 = 14;     // linha tipica da superficie
     int HeightFor(int c) => c <= 0 ? Ground0 : Ground0 - 1 + (int)(Hash.H(c, (int)seed) % 3);
 
-    /// <summary>Ato do chunk dentro da fase (era).</summary>
+    /// <summary>Ato do chunk dentro do level.</summary>
     enum Act { Arrival, Outskirts, Underground, Outpost, Fortress }
 
     enum Seg { Flat, Breather, Step, Pit, Cave, Tunnel, House, Platforms, Bunker, Camp, Crates, Cage, Tower, Bridge, Fortress }
@@ -76,8 +76,11 @@ public sealed partial class Game
         int baseCol = c * K.CHUNK;
         int h = HeightFor(c), endH = HeightFor(c + 1);
         float diff = MathF.Min(1f, c / 26f);   // dificuldade sobe devagar ao longo da corrida
-        var act = (Act)(c % K.CHUNKS_PER_ERA);
+        // ato do pedaco dentro do level: o ultimo e sempre a fortaleza; os outros se espalham pelos 4 primeiros atos
+        int n = GameConfig.PedacosPorLevel, pos = c % n;
+        var act = pos == n - 1 ? Act.Fortress : (Act)Math.Min(3, pos * 4 / Math.Max(1, n - 1));
         float budget = Budget(act) * (0.7f + diff * 0.9f);
+        bool city = Eras.ForCol(baseCol).Style == BgStyle.City;   // Sao Paulo: ruas com carros destruidos, viadutos, predios
         int safeUntil = int.MinValue;          // colunas logo depois de um pulo: sem inimigos (aterrissagem justa)
         int k = 0;
         int Id() => c * 1000 + (k++);
@@ -110,8 +113,17 @@ public sealed partial class Game
             for (int y = Math.Max(0, y0); y <= Math.Min(K.ROWS - 2, y1); y++) Ter.SetRaw(baseCol + col, y, 0);
         }
         void Tile(int col, int row, int type) => Ter.SetRaw(baseCol + col, row, Terrain.Make(type, 0, (int)Hash.H(baseCol + col, row)));
-        // escada de madeira da linha y0 (topo, serve de piso) ate y1
-        void Ladder(int col, int y0, int y1) { for (int y = y0; y <= y1; y++) Tile(col, y, Terrain.LADDER); }
+        // escada de madeira da linha y0 (topo, serve de piso) ate y1 — sempre com parede de fundo atras
+        void Ladder(int col, int y0, int y1)
+        {
+            for (int y = y0; y <= y1; y++)
+            {
+                Tile(col, y, Terrain.LADDER);
+                Ter.SetBack(baseCol + col, y, Ter.InGround(baseCol + col, y) ? Terrain.BACK_EARTH : Terrain.BACK_WALL);
+            }
+        }
+        // parede de fundo de construcao (fica quando os blocos da frente sao destruidos)
+        void Back(int col, int y0, int y1) { for (int y = y0; y <= y1; y++) Ter.SetBack(baseCol + col, y, Terrain.BACK_WALL); }
         float X(int col) => (baseCol + col) * K.T + K.T / 2f;
 
         // inimigo so entra se couber no orcamento do ato e nao estiver na zona de aterrissagem
@@ -152,6 +164,10 @@ public sealed partial class Game
         EnemyKind Shooter() => c >= 2 && r.Chance(0.3f) ? EnemyKind.Rocketeer : EnemyKind.Soldier;
         void Prop(PropKind kind, int col, float y) =>
             S.Props.Add(new Prop { Id = Id(), Kind = kind, X = X(col), Y = y, Char = r.Int(0, Chars.All.Length), T = r.Range(0, 5) });
+        // carro destruido (2 blocos de largura, centrado na divisa entre col e col+1); explode se levar muitos tiros
+        void Car(int col, int height, int variant = -1) =>
+            S.Props.Add(new Prop { Id = Id(), Kind = PropKind.Car, X = X(col) + K.HT, Y = height * K.T, Hp = 5,
+                Char = variant >= 0 ? variant : r.Int(0, 3) });
         void GlorbArc(int col, int len, int height)
         {
             for (int i = 0; i < len; i++)
@@ -183,7 +199,8 @@ public sealed partial class Game
             int len = r.Int(2, 5);
             for (int i = 0; i < len; i++) Fill(colI + i, h);
             bool foe = r.Chance(0.35f + diff * 0.25f) && Enemy(Grunt(), colI + len / 2, h * K.T);
-            if (!foe && r.Chance(0.5f)) GlorbArc(colI, Math.Min(3, len), h);
+            if (city && len >= 3 && r.Chance(0.6f)) Car(colI, h);                       // carro abandonado na rua
+            else if (!foe && r.Chance(0.5f)) GlorbArc(colI, Math.Min(3, len), h);
             if (act >= Act.Outpost && r.Chance(0.3f)) { Ambush(colI, 2, 0, Grunt()); foe = true; }
             colI += len;
             return foe ? 1 : 0;
@@ -195,6 +212,7 @@ public sealed partial class Game
             int len = r.Int(2, 4);
             for (int i = 0; i < len; i++) Fill(colI + i, h);
             GlorbArc(colI, len, h);
+            if (city && len >= 3 && r.Chance(0.35f)) Car(colI, h, 0);                    // carcaca queimada soltando fumaca
             colI += len;
             return 0;
         }
@@ -274,7 +292,7 @@ public sealed partial class Game
         {
             // PREDIO (Door Kickers): sala escura com porta. Chute a porta para atordoar quem esta atras.
             int w = r.Int(4, 7);
-            bool two = r.Chance(0.35f);
+            bool two = r.Chance(city ? 0.7f : 0.35f);
             int A = colI + 1, B = A + w + 1, len = w + 3;
             for (int i = 0; i < len; i++) Fill(colI + i, h);
             void Floor(int y0)
@@ -330,6 +348,7 @@ public sealed partial class Game
                 Fill(colI + i, h);
                 for (int y = top; y < h; y++) Tile(colI + i, y, Terrain.BRICK);
                 Tile(colI + i, top - 1, Terrain.STEEL);
+                Back(colI + i, top - 1, h - 1);
             }
             if (r.Chance(0.6f)) Prop(PropKind.Barrel, colI, h * K.T);                    // telegrafado, antes do bunker
             if (r.Chance(0.35f)) Ladder(colI, top - 1, h - 1);
@@ -345,8 +364,8 @@ public sealed partial class Game
             // ACAMPAMENTO: barris colados (reacao em cadeia) vistos ANTES do grupo de inimigos, caixas de cobertura
             int len = r.Int(6, 8);                       // inimigos em colI+2..4, caixas na ultima coluna
             for (int i = 0; i < len; i++) Fill(colI + i, h);
-            Prop(PropKind.Barrel, colI + 1, h * K.T);
-            Prop(PropKind.Barrel, colI + 2, h * K.T);
+            if (city) Car(colI + 1, h);                                                   // barricada de carro
+            else { Prop(PropKind.Barrel, colI + 1, h * K.T); Prop(PropKind.Barrel, colI + 2, h * K.T); }
             int n = 2 + (r.Chance(0.3f + diff * 0.5f) ? 1 : 0);
             for (int i = 0; i < n; i++) Enemy(i == 0 ? Shooter() : Grunt(), colI + 2 + i, h * K.T);
             int stack = r.Int(1, 3);
@@ -386,6 +405,7 @@ public sealed partial class Game
             int len = 3, th = r.Int(3, 6);
             for (int i = 0; i < len; i++) Fill(colI + i, h);
             for (int y = 1; y <= th; y++) Tile(colI + 1, h - y, Terrain.BRICK);
+            Back(colI + 1, h - th, h - 1);
             if (r.Chance(0.5f)) Prop(PropKind.Barrel, colI + 2, h * K.T);
             Enemy(Shooter(), colI + 1, (h - th) * K.T);
             if (th >= 4) GlorbArc(colI, 3, h - th);
@@ -399,7 +419,8 @@ public sealed partial class Game
             // Madeira: atire nas tabuas para derruba-los, e nao pare em cima (a tabua pisada cai em 1 segundo).
             // Concreto: firme, so explosoes estragam; pilares descem ate o fundo do abismo.
             int gap = r.Int(5, 9);
-            bool concrete = r.Chance(0.4f);
+            bool concrete = city || r.Chance(0.4f);                                       // na cidade: viadutos
+
             Fill(colI, h);
             for (int i = 1; i <= gap; i++)
             {
@@ -420,7 +441,7 @@ public sealed partial class Game
 
         int Fortress()
         {
-            // FORTALEZA (climax da fase): torre de vigia com escada, barris na base da torre (cadeia),
+            // FORTALEZA (climax do level): torre de vigia com escada, barris na base da torre (cadeia),
             // patio com tropas, bunker com torreta e o prisioneiro guardado atras. As vezes um tunel por
             // baixo permite flanquear e sair no meio do patio.
             int len = 13;
@@ -429,6 +450,7 @@ public sealed partial class Game
             int th = r.Int(4, 6), deck = h - th - 1;
             for (int y = 1; y <= th; y++) Tile(colI + 2, h - y, Terrain.BRICK);
             Tile(colI + 2, deck, Terrain.STEEL); Tile(colI + 3, deck, Terrain.BRICK); Tile(colI + 4, deck, Terrain.STEEL);
+            Back(colI + 2, deck, h - 1);
             Ladder(colI + 1, deck, h - 1);
             Enemy(Shooter(), colI + 3, deck * K.T);
             Prop(PropKind.Barrel, colI + 3, h * K.T);
@@ -443,6 +465,7 @@ public sealed partial class Game
             {
                 for (int y = h - 2; y < h; y++) Tile(colI + x, y, Terrain.BRICK);
                 Tile(colI + x, h - 3, Terrain.STEEL);
+                Back(colI + x, h - 3, h - 1);
             }
             if (!(c >= 2 && Enemy(EnemyKind.Turret, colI + 10, (h - 3) * K.T))) Enemy(Shooter(), colI + 10, (h - 3) * K.T);
             // recompensa: prisioneiro atras do bunker

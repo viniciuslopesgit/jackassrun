@@ -13,7 +13,6 @@ public static class K
     public static readonly int MaxViewW = (int)MathF.Ceiling(W * ZOOM_OUT), MaxViewH = (int)MathF.Ceiling(H * ZOOM_OUT);
     public const int CHUNK = 20;                // colunas por chunk gerado (320 px)
     public const int PX_PER_M = 8;              // pixels por metro no placar
-    public const int CHUNKS_PER_ERA = 5;        // chunks ate trocar de era
     public const int HISTORY = 600;             // frames de historico para rebobinar (10s)
     public const float DT = 1f / 60f;
     public const float GRAV = 620f;

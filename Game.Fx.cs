@@ -90,7 +90,7 @@ public sealed partial class Game
         sfx.Play("hit", 0.5f);
         var era = Eras.ForX(e.X);
         float cy = e.Kind == EnemyKind.Flyer ? e.Y : e.Y - 11;
-        bool metal = e.Kind == EnemyKind.Turret || era.Style == BgStyle.Future || e.Kind == EnemyKind.Flyer && era.Style == BgStyle.Jungle;
+        bool metal = e.Kind == EnemyKind.Turret || era.Style == BgStyle.Future || e.Kind == EnemyKind.Flyer && era.Style is BgStyle.Jungle or BgStyle.City;
         if (metal)
             for (int k = 0; k < 5; k++) AddPart(PKind.Spark, e.X, cy, e.HitDir * R(30, 120), R(-90, 30), 0.25f, 1, k % 2 == 0 ? Yellow : White);
         if (e.Kind != EnemyKind.Turret) BloodSpray(e.X, cy, e.HitDir, 5, BloodOf(era));
@@ -111,7 +111,7 @@ public sealed partial class Game
         var blood = BloodOf(era);
         sfx.Play("edie");
         float cy = e.Kind == EnemyKind.Flyer ? e.Y : e.Y - 11;
-        bool machine = e.Kind == EnemyKind.Turret || e.Kind == EnemyKind.Flyer && era.Style is BgStyle.Future or BgStyle.Jungle;
+        bool machine = e.Kind == EnemyKind.Turret || e.Kind == EnemyKind.Flyer && era.Style is BgStyle.Future or BgStyle.Jungle or BgStyle.City;
         if (machine)
         {
             Explode(e.X, cy, 16, true, K.PLAYER_ID);
@@ -461,6 +461,8 @@ public sealed partial class Game
         {
             if (!p.Done && p.Kind == PropKind.Barrel && p.Fuse < 0 && MathF.Abs(p.X - x) < r + 4 && MathF.Abs(p.Y - 5 - y) < r + 4)
                 p.Fuse = 0.12f;
+            if (!p.Done && p.Kind == PropKind.Car && p.Fuse < 0 && MathF.Abs(p.X - x) < r + 14 && MathF.Abs(p.Y - 6 - y) < r + 6)
+                p.Fuse = 0.35f;
             if (!p.Done && p.Kind == PropKind.Hostage && MathF.Abs(p.X - x) < r && MathF.Abs(p.Y - 8 - y) < r)
                 HitHostage(p, fromPlayer);
         }

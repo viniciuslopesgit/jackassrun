@@ -3,9 +3,10 @@ using static JackassRun.Col;
 
 namespace JackassRun;
 
-public enum BgStyle { Jungle, Dino, Medieval, Future }
+public enum BgStyle { Jungle, Dino, Medieval, Future, City }
 
-/// <summary>Uma era temporal: paleta de cenario, terreno e inimigos (estilo Super Time Force).</summary>
+/// <summary>Cenario de um level: paleta, terreno, fundos e inimigos. Os levels usam os cenarios em ordem
+/// (level 1 = selva, 2 = jurassico, ...) e depois repetem, mais dificeis.</summary>
 public sealed class Era
 {
     public string Name = "", Year = "";
@@ -32,7 +33,7 @@ public static class Eras
             FlyBody = Hex(0x5a6a3a), FlyWing = Hex(0xb0b6c0), EHatStyle = 1,
         },
         new Era {
-            Name = "ERA JURASSICA", Year = "65.000.000 A.C.", Style = BgStyle.Dino,
+            Name = "TERRA JURASSICA", Year = "65.000.000 A.C.", Style = BgStyle.Dino,
             SkyTop = Hex(0xd24a2a), SkyBot = Hex(0xffcf68), Sun = Hex(0xfff2c0),
             Far = Hex(0x9a3a2e), Mid = Hex(0x3e5a28), Near = Hex(0x26381a),
             Dirt = Hex(0xa8643a), DirtDark = Hex(0x683a22), Top = Hex(0x7aa83a), TopLight = Hex(0xd0e872),
@@ -42,7 +43,7 @@ public static class Eras
             FlyBody = Hex(0xb0603a), FlyWing = Hex(0xe0905a), EHatStyle = 5,
         },
         new Era {
-            Name = "IDADE MEDIA", Year = "1347 D.C.", Style = BgStyle.Medieval,
+            Name = "CASTELO MEDIEVAL", Year = "1347 D.C.", Style = BgStyle.Medieval,
             SkyTop = Hex(0x150f3a), SkyBot = Hex(0x74508e), Sun = Hex(0xf4f0d4),
             Far = Hex(0x3e3264), Mid = Hex(0x251c40), Near = Hex(0x18122a),
             Dirt = Hex(0x6a5a48), DirtDark = Hex(0x403426), Top = Hex(0x4a8e3c), TopLight = Hex(0x96d062),
@@ -50,6 +51,16 @@ public static class Eras
             ESkin = Hex(0xe0b090), EShirt = Hex(0xaab2c4), EPants = Hex(0x6a7082), EHat = Hex(0xc4ccdc),
             EAccent = Hex(0xd82a3a), EGun = Hex(0x5a3a22), EBullet = Hex(0xff6a3a),
             FlyBody = Hex(0x4e3c62), FlyWing = Hex(0x8a62a0), EHatStyle = 6,
+        },
+        new Era {
+            Name = "SAO PAULO EM CAOS", Year = "2025", Style = BgStyle.City,
+            SkyTop = Hex(0x18244c), SkyBot = Hex(0x86a2c8), Sun = Hex(0xf2ac88),
+            Far = Hex(0x2c3060), Mid = Hex(0x2a2630), Near = Hex(0x201e26),
+            Dirt = Hex(0x5e5a56), DirtDark = Hex(0x38342f), Top = Hex(0x8e8a82), TopLight = Hex(0xe4e0d4),
+            Brick = Hex(0x8e8a84), BrickDark = Hex(0x56534e), Steel = Hex(0x8a929c), SteelDark = Hex(0x464c56),
+            ESkin = Hex(0xc8906a), EShirt = Hex(0x2c2c34), EPants = Hex(0x3e4c6a), EHat = Hex(0x1c1c22),
+            EAccent = Hex(0xf0c020), EGun = Hex(0x26262c), EBullet = Hex(0xffc040),
+            FlyBody = Hex(0x2a3550), FlyWing = Hex(0xc8ccd4), EHatStyle = 3,
         },
         new Era {
             Name = "FUTURO NEON", Year = "2187", Style = BgStyle.Future,
@@ -63,7 +74,7 @@ public static class Eras
         },
     };
 
-    public static int IndexForChunk(int c) => ((c < 0 ? 0 : c) / K.CHUNKS_PER_ERA) % All.Length;
+    public static int IndexForChunk(int c) => ((c < 0 ? 0 : c) / GameConfig.PedacosPorLevel) % All.Length;
     public static int IndexForCol(int tx) => IndexForChunk((int)MathF.Floor(tx / (float)K.CHUNK));
     public static int IndexForX(float x) => IndexForCol((int)MathF.Floor(x / K.T));
     public static Era ForCol(int tx) => All[IndexForCol(tx)];

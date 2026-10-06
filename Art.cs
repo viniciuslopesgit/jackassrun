@@ -27,7 +27,8 @@ public static class Art
     public static Sheet[] Heroes = Array.Empty<Sheet>();
     public static Sheet[,] Grunts = new Sheet[0, 0];
     public static Sheet[] Flyers = Array.Empty<Sheet>(), Turrets = Array.Empty<Sheet>();
-    public static Sheet Barrel = null!, Glorb = null!, Cage = null!, Proj = null!, Hostage = null!, Parachute = null!;
+    public static Sheet Barrel = null!, Glorb = null!, Cage = null!, Proj = null!, Hostage = null!, Parachute = null!, Car = null!;
+    public static Texture2D[] Backs = Array.Empty<Texture2D>();     // paredes de fundo por era (tiles/fundo_<era>.png)
     public static Texture2D[] Tiles = Array.Empty<Texture2D>(), Sky = Array.Empty<Texture2D>(),
         Far = Array.Empty<Texture2D>(), Mid = Array.Empty<Texture2D>();
     public static Texture2D Bridge, Ladder, HouseWall, Concrete;
@@ -74,7 +75,7 @@ public static class Art
         }
         Grunts = new Sheet[eras, DesignExport.GruntSlug.Length];
         Flyers = new Sheet[eras]; Turrets = new Sheet[eras];
-        Tiles = new Texture2D[eras]; Sky = new Texture2D[eras]; Far = new Texture2D[eras]; Mid = new Texture2D[eras];
+        Tiles = new Texture2D[eras]; Backs = new Texture2D[eras]; Sky = new Texture2D[eras]; Far = new Texture2D[eras]; Mid = new Texture2D[eras];
         for (int e = 0; e < eras; e++)
         {
             for (int k = 0; k < DesignExport.GruntSlug.Length; k++)
@@ -82,6 +83,7 @@ public static class Art
             Flyers[e] = Make(DesignExport.FlyerPath(Root, e), 32, 24, 16, 12, 0);
             Turrets[e] = Make(DesignExport.TurretPath(Root, e), 32, 16, 12, 15, 0);
             Tiles[e] = Tex(DesignExport.TilesPath(Root, e));
+            Backs[e] = Tex(DesignExport.TilePath(Root, "fundo_" + DesignExport.EraSlug[e]));
             Sky[e] = Tex(DesignExport.BgPath(Root, e, "ceu"));
             Far[e] = Tex(DesignExport.BgPath(Root, e, "fundo"));
             Mid[e] = Tex(DesignExport.BgPath(Root, e, "meio"));
@@ -97,6 +99,7 @@ public static class Art
         Glorb = Make(DesignExport.PropPath(Root, "glorb"), 16, 16, 8, 8, 0);
         Cage = Make(DesignExport.PropPath(Root, "jaula"), 32, 48, 16, 47, 0);
         Proj = Make(DesignExport.PropPath(Root, "projeteis"), 32, 16, 16, 8, 0);
+        Car = Make(DesignExport.PropPath(Root, "carro"), 32, 16, 16, 15, 0);
         Parachute = Make(DesignExport.PropPath(Root, "paraquedas"), 24, 18, 12, 17, 0);
         return generated;
     }

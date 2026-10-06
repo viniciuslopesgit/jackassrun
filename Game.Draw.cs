@@ -119,40 +119,75 @@ public sealed partial class Game
             {
                 ushort b = Ter.Get(tx, ty);
                 int type = Terrain.TypeOf(b);
-                // parede ao fundo dentro das casas (e atras das portas e paredes, para quando forem destruidas)
-                if ((type == 0 || type == Terrain.DOOR) && InHouse(tx, ty))
+                // parede de fundo: aparece onde nao ha bloco solido na frente (vazio, escada, ponte, porta)
+                if (type == 0 || Terrain.Passable(type) || type == Terrain.DOOR)
                 {
-                    int win = ty == HouseTop(tx, ty) && Hash.H(tx, 991) % 3 == 0 ? 1 : 0;
-                    Raylib.DrawTextureRec(Art.HouseWall, new Rectangle(ei * K.T, win * K.T, K.T, K.T),
-                        new Vector2(tx * K.T - cam, ty * K.T - camY + shY), Color.White);
-                    if (type == 0) continue;
+                    if (InHouse(tx, ty))
+                    {
+                        // dentro das casas (e atras das portas e paredes, para quando forem destruidas)
+                        int win = ty == HouseTop(tx, ty) && Hash.H(tx, 991) % 3 == 0 ? 1 : 0;
+                        Raylib.DrawTextureRec(Art.HouseWall, new Rectangle(ei * K.T, win * K.T, K.T, K.T),
+                            new Vector2(tx * K.T - cam, ty * K.T - camY + shY), Color.White);
+                        BackShade(tx, ty);
+                    }
+                    else
+                    {
+                        int kind = Terrain.BackOf(b);
+                        if (kind == Terrain.BACK_NONE && Ter.InGround(tx, ty)) kind = Terrain.BACK_EARTH;
+                        if (kind == Terrain.BACK_NONE && type == Terrain.LADDER) kind = Terrain.BACK_WALL;   // escada sempre com fundo
+                        if (kind != Terrain.BACK_NONE) DrawBack(tx, ty, ei, kind);
+                    }
                 }
-                if (type == 0)
-                {
-                    // espaco aberto no subsolo: parede de terra escura ao fundo (tuneis, cavernas, buracos cavados)
-                    if (Ter.Underground(tx, ty))
-                        Raylib.DrawTextureRec(Art.Tiles[ei], new Rectangle((int)(Hash.H(tx, ty) % 4) * K.T, 2 * K.T, K.T, K.T),
-                            new Vector2(tx * K.T - cam, ty * K.T - camY + shY), CaveTint);
-                    continue;
-                }
-                if (Terrain.Passable(type) && Ter.Underground(tx, ty))
-                    Raylib.DrawTextureRec(Art.Tiles[ei], new Rectangle((int)(Hash.H(tx, ty) % 4) * K.T, 2 * K.T, K.T, K.T),
-                        new Vector2(tx * K.T - cam, ty * K.T - camY + shY), CaveTint);
+                if (type == 0) continue;
                 DrawTile(tx, ty, type, Terrain.DmgOf(b), Terrain.VarOf(b), Terrain.LookOf(b), e);
             }
-            // fenda temporal entre eras
-            if (tx % (K.CHUNK * K.CHUNKS_PER_ERA) == 0 && tx > 0)
-            {
-                int x = tx * K.T - cam;
-                for (int y = 0; y < (int)ViewH + 2; y += 2)
-                {
-                    int wy = y + camY;
-                    int o = (int)(MathF.Sin(time * 8 + wy * 0.3f) * 3);
-                    Rect(x + o - 1, y + shY, 3, 2, A(wy % 4 == 0 ? Cyan : Magenta, 0.6f));
-                    if (Hash.F(wy, (int)(time * 20)) > 0.85f) Rect(x + o - 4, y + shY, 9, 1, A(White, 0.8f));
-                }
-            }
+            // bandeira no fim de cada level
+            if (tx % PhaseCols == 0 && tx > 0) DrawGoal(tx);
         }
+    }
+
+    /// <summary>Bandeira quadriculada no fim de cada level (balanca ao vento; fica verde depois de passada).</summary>
+    void DrawGoal(int tx)
+    {
+        int row = Ter.Surface(tx);
+        if (row < 0) row = Ter.Surface(tx - 1);
+        if (row < 0) return;
+        int x = tx * K.T - cam, ground = row * K.T - camY + shY;
+        bool done = PhaseAtX(tx * K.T) <= S.Phase;
+        var pole = Hex(0xd8d4cc); var poleD = Hex(0x8a867e);
+        Rect(x - 1, ground - 46, 3, 46, pole); Rect(x + 1, ground - 46, 1, 46, poleD);
+        Rect(x - 2, ground - 49, 5, 3, Yellow); Rect(x - 1, ground - 50, 3, 1, Hex(0xfff0a0));
+        Rect(x - 3, ground - 2, 7, 2, poleD);
+        int wave = (int)(time * 6) % 2;
+        for (int fy = 0; fy < 4; fy++)
+            for (int fxx = 0; fxx < 6; fxx++)
+            {
+                bool dark = (fx2(fxx, fy) & 1) == 0;
+                var c = done ? (dark ? Hex(0x2a8a3a) : Hex(0x7ad86a)) : (dark ? Hex(0x1e1e24) : Hex(0xf0f0ec));
+                int wy = fxx >= 3 && wave == 1 ? 1 : 0;
+                Rect(x + 2 + fxx * 3, ground - 45 + fy * 3 + wy, 3, 3, c);
+            }
+        static int fx2(int a, int b) => a + b;
+    }
+
+    /// <summary>Parede de fundo (terra/caverna ou construcao) com sombra junto aos blocos solidos vizinhos.</summary>
+    void DrawBack(int tx, int ty, int ei, int kind)
+    {
+        int v = (int)(Hash.H(tx * 3 + 1, ty * 7 + 2) % 4);
+        Raylib.DrawTextureRec(Art.Backs[ei], new Rectangle(v * K.T, (kind - 1) * K.T, K.T, K.T),
+            new Vector2(tx * K.T - cam, ty * K.T - camY + shY), Color.White);
+        BackShade(tx, ty);
+    }
+
+    /// <summary>Sombra de contato (oclusao) na parede de fundo: mais forte embaixo do bloco de cima e junto as paredes.</summary>
+    void BackShade(int tx, int ty)
+    {
+        int x = tx * K.T - cam, y = ty * K.T - camY + shY;
+        var s1 = A(Hex(0x000000), 0.45f); var s2 = A(Hex(0x000000), 0.22f);
+        if (Ter.Solid(tx, ty - 1)) { Rect(x, y, K.T, 2, s1); Rect(x, y + 2, K.T, 2, s2); }
+        if (Ter.Solid(tx - 1, ty)) { Rect(x, y, 2, K.T, s1); Rect(x + 2, y, 1, K.T, s2); }
+        if (Ter.Solid(tx + 1, ty)) { Rect(x + K.T - 2, y, 2, K.T, s1); Rect(x + K.T - 3, y, 1, K.T, s2); }
+        if (Ter.Solid(tx, ty + 1)) Rect(x, y + K.T - 1, K.T, 1, s2);
     }
 
     /// <summary>Area de uma casa (sala + porta, parede do fundo e teto).</summary>
@@ -168,7 +203,7 @@ public sealed partial class Game
         return -1;
     }
 
-    static readonly Color CaveTint = new(78, 72, 86, 255), BedrockTint = new(120, 116, 132, 255);
+    static readonly Color BedrockTint = new(120, 116, 132, 255);
 
     /// <summary>A aparencia vem do proprio bloco (decidida ao gerar): nunca muda por causa dos vizinhos.
     /// Os vizinhos so decidem se os enfeites de grama aparecem (nao ha nada em cima).</summary>
@@ -304,6 +339,13 @@ public sealed partial class Game
                     var an = p.Hp == 2 ? new Anim { S = AState.Run, T = p.T, Speed = 60 } : Anim.Of(AState.Cheer, p.T * 0.5f);
                     Art.Human(Art.Hostage, x, y, p.Hp == 2 ? -1 : 1, an);
                     if (p.Hp == 1 && ((int)(time * 2) & 1) == 0 && !InHiddenRoom(p.X, p.Y - 8)) TextC("REFEM", x, y - 30, 10, White, Ink);
+                    break;
+                }
+                case PropKind.Car:
+                {
+                    bool burn = p.Fuse >= 0 && (int)(time * 20) % 2 == 0;
+                    int f = (p.Id & 1) == 0 ? 1 : -1;
+                    Art.Cell(Art.Car, p.Char, 0, x + (p.Fuse >= 0 ? (int)MathF.Round(MathF.Sin(time * 50)) : 0), y, f, 0, burn ? Red : null, burn);
                     break;
                 }
                 case PropKind.Glorb:
@@ -660,6 +702,20 @@ public sealed partial class Game
         BgLayer(Art.Far[ei], S.CamX * 0.12f, (camY0 - S.CamY) * 0.15f, vw, vh, e.Far);
         BgLayer(Art.Mid[ei], S.CamX * 0.35f, (camY0 - S.CamY) * 0.3f, vw, vh, e.Mid);
 
+        // corvos sobrevoando a cidade (2 quadros de asa)
+        if (e.Style == BgStyle.City)
+            for (int i = 0; i < 5; i++)
+            {
+                float bx = (Hash.F(i, 41) * vw * 2 + time * (8 + i * 2) - S.CamX * 0.05f) % (vw + 40) - 20;
+                if (bx < -20) bx += vw + 40;
+                int by = 18 + (int)(Hash.F(i, 42) * 50 + MathF.Sin(time * 0.7f + i) * 4);
+                var crow = Hex(0x16161e);
+                int ix = (int)bx;
+                Raylib.DrawRectangle(ix, by, 2, 1, crow);
+                if (((int)(time * 6) + i) % 2 == 0) { Raylib.DrawRectangle(ix - 2, by - 1, 2, 1, crow); Raylib.DrawRectangle(ix + 2, by - 1, 2, 1, crow); Raylib.DrawRectangle(ix - 3, by - 2, 1, 1, crow); Raylib.DrawRectangle(ix + 4, by - 2, 1, 1, crow); }
+                else { Raylib.DrawRectangle(ix - 3, by, 3, 1, crow); Raylib.DrawRectangle(ix + 2, by, 3, 1, crow); Raylib.DrawRectangle(ix - 3, by + 1, 1, 1, crow); Raylib.DrawRectangle(ix + 4, by + 1, 1, 1, crow); }
+            }
+
         // particulas de ambiente (folhas, cinzas, vagalumes, chuva neon)
         for (int i = 0; i < 30; i++)
         {
@@ -678,6 +734,11 @@ public sealed partial class Game
                     break;
                 case BgStyle.Medieval:
                     if (MathF.Sin(time * 3 + i * 1.7f) > 0) Raylib.DrawRectangleRec(new Rectangle(px, py * 0.7f + 40, 1, 1), Yellow);
+                    break;
+                case BgStyle.City:
+                    // cinzas caindo e brasas subindo
+                    if (i % 4 == 0) Raylib.DrawRectangleRec(new Rectangle(px, vh - py, 1, 1), A(i % 8 == 0 ? Yellow : Orange, 0.85f));
+                    else Raylib.DrawRectangleRec(new Rectangle(px + MathF.Sin(time + i) * 3, py * 0.6f, 1, 1), A(Hex(0x9a9690), 0.7f));
                     break;
                 default:
                     Raylib.DrawRectangleRec(new Rectangle(px, py, 1, 4), A(Cyan, 0.35f));
@@ -736,19 +797,25 @@ public sealed partial class Game
         Rect(tx - 6, 16, 60, 3, A(Ink, 0.45f));
         Rect(tx - 6, 16, 60 * glorbCount / 12, 3, Magenta);
 
-        string m = Meters + " M";
+        string m = "LEVEL " + (S.Phase + 1);
         Text(m, K.W - 4 - Raylib.MeasureText(m, 10), 4, 10, Yellow);
         string sc = FinalScore().ToString("N0").Replace(',', '.');
         Text(sc, K.W - 4 - Raylib.MeasureText(sc, 10), 15, 10, White);
+        // progresso ate a bandeira do proximo level
+        float prog = Math.Clamp((P.X / K.T - S.Phase * PhaseCols) / PhaseCols, 0, 1);
+        Rect(K.W - 54, 27, 50, 3, A(Ink, 0.45f));
+        Rect(K.W - 54, 27, (int)(50 * prog), 3, Yellow);
+        Rect(K.W - 5, 25, 1, 7, White);
 
         if (eraBannerT > 0)
         {
             float a = MathF.Min(1, eraBannerT);
             float slideIn = MathF.Max(0, eraBannerT - 2.5f) * 2;
             int slide = (int)(slideIn * slideIn * 220);
-            Rect(0, 52, K.W, 34, A(Ink, 0.55f * a));
+            bool sub = eraSub.Length > 0;
+            Rect(0, 52, K.W, sub ? 34 : 28, A(Ink, 0.55f * a));
             TextC(eraBanner, K.W / 2 + slide, 56, 20, A(Yellow, a), A(Ink, a));
-            TextC(eraSub, K.W / 2 - slide, 76, 10, A(Cyan, a), A(Ink, a));
+            if (sub) TextC(eraSub, K.W / 2 - slide, 76, 10, A(Cyan, a), A(Ink, a));
         }
     }
 
@@ -863,9 +930,9 @@ public sealed partial class Game
     void DrawGameOver()
     {
         Rect(0, 0, K.W, K.H, A(Ink, MathF.Min(0.7f, modeT)));
-        TextC("FIM DOS TEMPOS", K.W / 2, 34, 30, Red);
+        TextC("FIM DE JOGO", K.W / 2, 34, 30, Red);
         TextC(deathMsg, K.W / 2, 66, 10, White);
-        TextC("DISTANCIA: " + Meters + " M", K.W / 2, 88, 10, Yellow);
+        TextC("LEVEL " + (S.Phase + 1) + "   DISTANCIA: " + Meters + " M", K.W / 2, 88, 10, Yellow);
         TextC("INIMIGOS: " + S.Kills, K.W / 2, 100, 10, Yellow);
         TextC("PONTOS: " + lastScore.ToString("N0").Replace(',', '.'), K.W / 2, 112, 20, White);
         if (newBest && (int)(modeT * 4) % 2 == 0) TextC("NOVO RECORDE!", K.W / 2, 134, 10, Green);

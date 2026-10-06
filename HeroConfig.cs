@@ -21,6 +21,10 @@ public sealed class HeroStats
                                         //   (batarangue: metade indo, metade voltando)
     public float AtordoamentoTiro;      // segundos que o inimigo fica atordoado ao ser atingido (0 = nao atordoa)
 
+    // facada (ataque corpo a corpo: sai no lugar do tiro quando o inimigo esta colado a frente)
+    public int DanoFacada;              // dano da facada (soldado tem 2 de vida, bazuqueiro 3, brutamontes 8)
+    public float AlcanceFacada;         // distancia em pixels a frente do heroi em que a facada acerta
+
     // dano do tiro nos blocos (vida de cada bloco: terra 8, tijolo 5, caixa 3, porta 2, ponte 2; aco e rocha nao quebram)
     public int DanoTerra;               // dano por tiro num bloco de terra
     public int DanoTijolo;              // dano por tiro num bloco de tijolo
@@ -67,7 +71,7 @@ public static class HeroConfig
             ForcaPulo = 238,
             PulosNoAr = 0,
             VelocidadeEscalada = 100,
-            QuedaPlanando = 200,
+            QuedaPlanando = 400,
 
             IntervaloTiro = 0.20f,
             VelocidadeTiro = 400,
@@ -75,6 +79,8 @@ public static class HeroConfig
             DispersaoTiro = 1,
             AlcanceTiro = 1f,
             AtordoamentoTiro = 0.5f,
+            DanoFacada = 6,
+            AlcanceFacada = 16,
 
             DanoTerra = 4,
             DanoTijolo = 2,
@@ -107,6 +113,8 @@ public static class HeroConfig
             DispersaoTiro = 8,
             AlcanceTiro = 0.7f,
             AtordoamentoTiro = 0,
+            DanoFacada = 4,
+            AlcanceFacada = 14,
             DanoTerra = 1,
             DanoTijolo = 1,
             DanoCaixa = 1,
@@ -136,6 +144,8 @@ public static class HeroConfig
             DispersaoTiro = 0,
             AlcanceTiro = 0.7f,
             AtordoamentoTiro = 1.6f,
+            DanoFacada = 5,
+            AlcanceFacada = 16,
             DanoTerra = 1,
             DanoTijolo = 1,
             DanoCaixa = 1,

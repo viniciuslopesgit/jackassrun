@@ -2,7 +2,7 @@
 
 Corrida infinita horizontal em C# (.NET 10 + Raylib-cs), misturando Broforce
 (terreno destrutível, explosões em cadeia, resgate de prisioneiros) com
-Super Time Force (rebobinar o tempo, vidas passadas que lutam ao seu lado, eras temporais).
+Super Time Force (rebobinar o tempo, vidas passadas que lutam ao seu lado).
 
 ## Rodar
 
@@ -41,7 +41,10 @@ Segure contra uma parede no ar para escalar. Pontes de madeira: atire nas tábua
   **arromba e atordoa** quem está atrás; cair em cima de um inimigo também atordoa. Inimigo atordoado vale o dobro.
   **Reféns**: encoste para salvar (+300); acertar um refém custa -500. Inimigos novos: **faca** (mata no contato)
   e **homem-bomba** (corre até você e explode; atire antes e ele explode nos vizinhos).
-- **Eras** a cada 200 m: Selva 1985 → Jurássico → Idade Média → Futuro Neon (e repete, mais rápido).
+- **Levels** (a cada 200 m — ajuste em `GameConfig.MetrosPorLevel`; a corrida nunca para), cada um com o seu cenário: 1 Selva de Guerra → 2 Terra Jurássica →
+  3 Castelo Medieval → 4 **São Paulo em Caos** → 5 Futuro Neon; depois os cenários repetem, cada vez mais difíceis.
+  O fim de cada level tem uma **bandeira**: ao passar, aparece o balanço (inimigos, resgates) e um bônus de pontos.
+  Na cidade: prédios detalhados, calçada portuguesa, viadutos de concreto, pixo, incêndios e **carros destruídos** que explodem depois de alguns tiros.
 
 ## Heróis
 
@@ -61,12 +64,12 @@ Edite os números de cada herói em `HeroConfig.cs` e rode o jogo de novo (`dotn
 
 ## Geração dos cenários (`Game.Gen.cs`)
 
-Inspirada no level design do Broforce. Cada era é uma **fase** de 5 trechos com arco de tensão:
+Inspirada no level design do Broforce. Cada **level** tem 5 trechos com arco de tensão:
 **Chegada** (calma) → **Arredores** (ponte ou casa) → **Subsolo** (caverna ou túnel: dois caminhos) →
 **Posto avançado** (bunker, acampamento com barris ou ponte) → **Fortaleza** (clímax, com prisioneiro no fim).
 
 - Cada trecho tem uma **peça central** do seu ato e **recheio** sorteado por pesos, sem repetir o anterior.
-- **Orçamento de inimigos** por ato (sobe ao longo da fase e da corrida): sem inimigos espalhados à toa.
+- **Orçamento de inimigos** por ato (sobe ao longo do level e da corrida): sem inimigos espalhados à toa.
 - **Respiros** (chão calmo com prémios) depois de trechos intensos e **prisioneiros como recompensa**.
 - **Justiça**: buracos têm corrida antes e aterrissagem sem inimigos; barris aparecem antes dos inimigos.
 - Ajuste em `Fillers` (pesos), `Anchors` (peças centrais), `Budget` (inimigos por ato) e `Cost` (preço de cada inimigo).

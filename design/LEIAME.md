@@ -78,9 +78,27 @@ Em vez de editar a folha `sprites/herois/NOME.png`, pode desenhar uma animacao f
   So os 5px de cima da tabua contam como piso / alvo dos tiros.
 - escada.png (32x16): escada (a segunda celula esta reservada). O topo da escada serve de piso. Escadas sao indestrutiveis.
 - concreto.png (16x32): ponte de concreto. Celula de cima = tabuleiro; celula de baixo = pilar.
-- parede.png (64x32): fundo de dentro das casas, uma coluna por era (selva, jurassico, medieval, futuro).
+- parede.png (80x32): fundo de dentro das casas, uma coluna por era (selva, jurassico, medieval, cidade, futuro).
   Linha de cima = parede lisa; linha de baixo = parede com janela (usada na fileira de cima da sala).
 
 ## sprites/objetos/paraquedas.png
 - paraquedas.png (24x18): copula dos paraquedistas; o ponto onde as cordas se juntam fica no fundo, ao centro
   (e ali que fica a cabeca do soldado).
+
+## sprites/objetos/carro.png
+- carro.png (96x16): carros destruidos da cidade, celulas de 32x16 com a base em (16, 15):
+  0 carcaca queimada (solta fumaca), 1 taxi branco batido, 2 carro vermelho amassado.
+
+## Era "cidade" (Sao Paulo em caos)
+- tiles/cidade.png segue o mesmo formato das outras eras. A linha 0 e a calcada portuguesa (ondas pretas e
+  brancas) com guia; os enfeites da linha 4 sao saco de lixo, cone e papeis/garrafa.
+- cenarios/cidade/: ceu.png (azul profundo, nuvens de entardecer, fumaca), fundo.png (skyline anil) e
+  meio.png (predios, arvores, muro com pixo e postes). Nas camadas, a rua fica na linha 124.
+
+## tiles/fundo_<era>.png (paredes de fundo)
+- 64x32, celulas de 16x16. Linha 0 = terra/caverna (aparece em tuneis, cavernas e buracos cavados no chao);
+  linha 1 = parede de construcao (atras de escadas, torres e bunkers; fica no lugar quando os blocos da frente
+  sao destruidos). 4 variacoes por linha, sorteadas por posicao.
+- Use tons mais escuros e frios que os blocos da frente. O jogo acrescenta sozinho a sombra de contato
+  junto aos blocos solidos vizinhos.
+- Toda escada tem parede de fundo atras (terra se estiver dentro do chao, construcao fora dele).

@@ -45,7 +45,7 @@ public sealed class Bullet
     public Bullet Clone() => (Bullet)MemberwiseClone();
 }
 
-public enum PropKind { Barrel, Cage, Glorb, Hostage }
+public enum PropKind { Barrel, Cage, Glorb, Hostage, Car }
 
 public sealed class Prop
 {
@@ -105,6 +105,7 @@ public sealed class Explosion
 public sealed class WorldState
 {
     public int Frame, NextChunk, NextId = 1_000_000, Score, Kills;
+    public int Phase, PhaseKills0, PhaseRescues;       // level atual (0 = level 1), abates no inicio dele, resgates nele
     public float CamX, Speed = 34, FreezeT;
     public float CamY = 120, Zoom = 1;   // camera vertical e zoom (1 = normal, ZOOM_OUT = afastado)
     public float ShotCD;          // "vez" de atirar: enquanto > 0 nenhum inimigo atira
@@ -181,9 +182,15 @@ public sealed class Terrain
 
     public void SetSurface(int tx, int row) => surf[tx] = row;
     public bool Underground(int tx, int ty) => surf.TryGetValue(tx, out var r) && ty > r;
+    /// <summary>Dentro da terra (inclui a linha da superficie): um buraco aqui mostra parede de terra ao fundo.</summary>
+    public bool InGround(int tx, int ty) => surf.TryGetValue(tx, out var r) && ty >= r;
     readonly List<Mod> log = new();
 
-    // bits: 0-3 dano | 4-5 variacao | 6-7 aparencia (0 grama, 1 terra, 2 fundo) | 8-11 tipo
+    // bits: 0-3 dano | 4-5 variacao | 6-7 aparencia (0 grama, 1 terra, 2 fundo) | 8-11 tipo | 12-13 parede de fundo
+    // A parede de fundo (BACK_*) fica no lugar quando o bloco da frente e destruido.
+    public const int BACK_NONE = 0, BACK_EARTH = 1, BACK_WALL = 2;
+    const ushort BackMask = 0x3000;
+    public static int BackOf(ushort b) => (b >> 12) & 3;
     public static int TypeOf(ushort b) => (b >> 8) & 15;
     public static int DmgOf(ushort b) => b & 15;
     public static int VarOf(ushort b) => (b >> 4) & 3;
@@ -219,9 +226,17 @@ public sealed class Terrain
         c[ty] = v;
     }
 
+    /// <summary>Marca a parede de fundo de uma celula (usado na geracao).</summary>
+    public void SetBack(int tx, int ty, int kind)
+    {
+        ushort v = Get(tx, ty);
+        SetRaw(tx, ty, (ushort)((v & ~BackMask) | ((kind & 3) << 12)));
+    }
+
     public void Set(int frame, int tx, int ty, ushort v)
     {
         ushort old = Get(tx, ty);
+        v = (ushort)((v & ~BackMask) | (old & BackMask));      // a parede de fundo da celula nao muda
         if (old == v || ty < 0 || ty >= K.ROWS) return;
         log.Add(new Mod(frame, tx, ty, old));
         SetRaw(tx, ty, v);

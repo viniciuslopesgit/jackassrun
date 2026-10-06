@@ -70,4 +70,47 @@ public sealed partial class Game
         e.OnGround = MoveBody(ref e.X, ref e.Y, ref e.VX, ref e.VY, e.HalfW - 0.5f, e.Height - 2, out _);
         return true;
     }
+
+    // ------------------------------------------------------------------ carros destruidos (cidade)
+
+    /// <summary>Carro abandonado: aguenta alguns tiros, pega fogo e explode (explosao grande, em cadeia).
+    /// A carcaca queimada (variacao 0) solta fumaca o tempo todo.</summary>
+    void UpdateCar(Prop p)
+    {
+        float vx = 0, x = p.X, y = p.Y, vy = p.VY + K.GRAV * K.DT;
+        MoveBody(ref x, ref y, ref vx, ref vy, 12f, 10, out _);
+        p.X = x; p.Y = y; p.VY = vy;
+        if (p.Y > K.ROWS * K.T + 30) { p.Done = true; return; }
+        if (p.Char == 0 && fx.Next(7) == 0)
+            AddPart(PKind.Smoke, p.X + fx.Next(-8, 8), p.Y - 10, fx.Next(-6, 10), -fx.Next(14, 30), 1.4f, 3, A(Hex(0x2a2a2e), 0.7f));
+        if (p.Fuse < 0) return;
+        // pegando fogo
+        if (fx.Next(2) == 0) AddPart(PKind.Fire, p.X + fx.Next(-10, 10), p.Y - 9, fx.Next(-10, 10), -fx.Next(20, 50), 0.4f, 2, Orange);
+        p.Fuse -= K.DT;
+        if (p.Fuse >= 0) return;
+        p.Done = true;
+        Explode(p.X, p.Y - 6, 44, false, -p.Id);
+        var metal = p.Char == 0 ? Hex(0x3a3634) : p.Char == 1 ? Hex(0xd8d6ce) : Hex(0xa83228);
+        for (int k = 0; k < 10; k++)
+            AddPart(PKind.Debris, p.X + R(-10, 10), p.Y - 8, R(-160, 160), -R(120, 280), 1.6f, fx.Next(2, 4), k % 3 == 0 ? Hex(0x1e1e22) : metal, 540);
+        shake = MathF.Max(shake, 5);
+    }
+
+    /// <summary>Tiro acertou um carro? Amassa (perde vida) e, sem vida, comeca a pegar fogo.</summary>
+    bool CarHit(Bullet b, float bx0, float by0, float bx1, float by1)
+    {
+        foreach (var p in S.Props)
+        {
+            if (p.Done || p.Kind != PropKind.Car || p.Fuse >= 0) continue;
+            if (!Hit(bx0, by0, bx1, by1, p.X - 13, p.Y - 12, p.X + 13, p.Y)) continue;
+            b.Dead = true;
+            if (b.ExplodeR > 0) { Explode(b.X, b.Y, b.ExplodeR, b.FromPlayer, b.OwnerId); return true; }
+            p.Hp -= Math.Max(1, b.Dmg);
+            for (int k = 0; k < 3; k++) AddPart(PKind.Spark, b.X, b.Y, fx.Next(-60, 60), -fx.Next(20, 80), 0.18f, 1, k == 0 ? White : Yellow);
+            sfx.Play("clank", 0.4f, 1.2f);
+            if (p.Hp <= 0) p.Fuse = 0.9f;
+            return true;
+        }
+        return false;
+    }
 }

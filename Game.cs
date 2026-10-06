@@ -22,9 +22,10 @@ public sealed partial class Game
     readonly Sfx sfx;
 
     uint seed;
-    int timeOuts, glorbCount, best, selIdx, rewindIdx, lastEra = -1, lastScore;
+    int timeOuts, glorbCount, best, selIdx, rewindIdx, lastScore;
     float modeT, rewindAcc, shake, flash, eraBannerT, titleT, hitStop;
     string deathMsg = "", eraBanner = "", eraSub = "";
+    int pendingPhase = -1;                        // proximo level a anunciar depois do "LEVEL COMPLETO"
     bool quit, newBest;
     InputState pending;
     bool prevL, prevR;
@@ -147,6 +148,7 @@ public sealed partial class Game
         if (shake > 0) shake = MathF.Max(0, shake - K.DT * 18);
         if (flash > 0) flash -= K.DT * 3;
         if (eraBannerT > 0) eraBannerT -= K.DT;
+        if (eraBannerT <= 0 && pendingPhase >= 0) { AnnouncePhase(pendingPhase); pendingPhase = -1; }
     }
 
     // ------------------------------------------------------------------ fluxo da partida
@@ -159,7 +161,6 @@ public sealed partial class Game
         Ter = new Terrain();
         hist.Clear(); ghosts.Clear(); parts.Clear(); texts.Clear(); corpses.Clear(); trails.Clear(); decals.Clear();
         rec = null; P = new Player { Dead = true };
-        lastEra = -1;
         EnsureChunks();
         mode = Mode.Title; modeT = 0; titleT = 0;
     }
@@ -170,9 +171,10 @@ public sealed partial class Game
         S = new WorldState { Rng = new Rng(seed * 2654435761u) };
         Ter = new Terrain();
         hist.Clear(); ghosts.Clear(); parts.Clear(); texts.Clear(); corpses.Clear(); trails.Clear(); decals.Clear();
-        timeOuts = 3; glorbCount = 0; lastEra = -1; newBest = false;
+        timeOuts = 3; glorbCount = 0; newBest = false; pendingPhase = -1;
         EnsureChunks();
         SpawnPlayer(0);
+        AnnouncePhase(0);
         hist.Add(S.Clone());
         mode = Mode.Play; modeT = 0;
     }
@@ -271,6 +273,18 @@ public sealed partial class Game
     }
 
     int Meters => (int)(S.CamX / K.PX_PER_M);
+
+    // ------------------------------------------------------------------ levels (corrida infinita)
+
+    static readonly int PhaseCols = K.CHUNK * GameConfig.PedacosPorLevel;   // colunas de cada level (GameConfig.MetrosPorLevel)
+    static int PhaseAtX(float x) => Math.Max(0, (int)MathF.Floor(x / K.T / PhaseCols));
+
+    void AnnouncePhase(int phase)
+    {
+        eraBanner = "LEVEL " + (phase + 1);       // so o numero, sem o nome do cenario
+        eraSub = "";
+        eraBannerT = 3f;
+    }
     int FinalScore() => S.Score + Meters * 10;
 
     static string BestPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "JackassRun", "best.txt");

@@ -30,8 +30,8 @@ static class Tune
     public const float FallBrick = 0.4f;
     public const float FallCrate = 0.75f;
     public const float ScreenMargin = 12;       // so atiram quando estao visiveis na tela
-    public const float CorpseMin = 3f;        // corpo de inimigo some entre CorpseMin e CorpseMax segundos
-    public const float CorpseMax = 5f;
+    public const float CorpseMin = 4f;        // corpo de inimigo some entre CorpseMin e CorpseMax segundos
+    public const float CorpseMax = 6f;
     public const float LadderChance = 0.4f;     // chance de um inimigo patrulhando usar a escada por onde passa
     public const float WalkSpeed = 40;          // patrulha do soldado (brutamontes: 2/3 disso)
     public const float AdvanceRange = 100;      // alertado e mais longe que isso: avanca na direcao do heroi
@@ -58,7 +58,7 @@ public sealed partial class Game
         UpdateFalling();
         UpdateRooms();
         Cleanup();
-        CheckEra();
+        CheckPhase();
 
         hist.Add(S.Clone());
         if (hist.Count > K.HISTORY) hist.RemoveAt(0);
@@ -105,20 +105,25 @@ public sealed partial class Game
         S.CamY += (ty - S.CamY) * (1 - MathF.Exp(-speed * K.DT));
     }
 
-    void CheckEra()
+    /// <summary>Corrida infinita dividida em levels: ao passar a bandeira, o level atual e completado (bonus por
+    /// inimigos e resgates) e o proximo e anunciado. A corrida nunca para.</summary>
+    void CheckPhase()
     {
-        int e = Eras.IndexForX(S.CamX + K.W * 0.5f);
-        if (e != lastEra)
-        {
-            if (lastEra >= 0)
-            {
-                var era = Eras.All[e];
-                eraBanner = era.Year; eraSub = era.Name; eraBannerT = 3f;
-                flash = 0.8f; shake = 3; sfx.Play("warp");
-            }
-            else { eraBanner = Eras.All[e].Year; eraSub = Eras.All[e].Name; eraBannerT = 2.5f; }
-            lastEra = e;
-        }
+        if (P.Dead) return;
+        int phase = PhaseAtX(P.X);
+        if (phase <= S.Phase) return;
+        int kills = S.Kills - S.PhaseKills0, resc = S.PhaseRescues;
+        int bonus = 1000 + resc * 1000 + kills * 20;
+        S.Score += bonus;
+        eraBanner = "LEVEL " + (S.Phase + 1) + " COMPLETO!";
+        eraSub = $"INIMIGOS {kills}   RESGATES {resc}   BONUS +{bonus}";
+        eraBannerT = 3f;
+        pendingPhase = phase;
+        S.Phase = phase; S.PhaseKills0 = S.Kills; S.PhaseRescues = 0;
+        flash = 0.5f; shake = 2;
+        sfx.Play("rescue", 1f, 0.9f);
+        for (int k = 0; k < 30; k++)
+            AddPart(PKind.Pixel, P.X, P.Y - 12, fx.Next(-120, 120), -fx.Next(60, 220), 1f, 2, k % 3 == 0 ? Yellow : k % 3 == 1 ? Cyan : Magenta, 300);
     }
 
     // ------------------------------------------------------------------ fisica generica
@@ -473,9 +478,42 @@ public sealed partial class Game
     /// <summary>Tempo que o batarangue passa indo antes de voltar (metade do AlcanceTiro do Batman).</summary>
     static float BatarangOut => HeroConfig.Stats[Chars.Batman].AlcanceTiro * 0.5f;
 
+    /// <summary>Facada: se houver um inimigo colado a frente do heroi, acerta-o com a faca (dano e alcance no
+    /// HeroConfig) em vez de atirar. Vale tambem para os fantasmas das vidas passadas.</summary>
+    bool TryStab(int ch, float x, float y, int f, bool ghost)
+    {
+        var st = HeroConfig.Of(ch);
+        if (st.DanoFacada <= 0 || st.AlcanceFacada <= 0) return false;
+        float x0 = f > 0 ? x - 3 : x - st.AlcanceFacada, x1 = f > 0 ? x + st.AlcanceFacada : x + 3;
+        float y0 = y - 18, y1 = y;
+        Enemy? target = null; float best = float.MaxValue;
+        foreach (var e in S.Enemies)
+        {
+            if (e.Dead) continue;
+            var (ex0, ey0, ex1, ey1) = e.Box;
+            if (!Hit(x0, y0, x1, y1, ex0, ey0, ex1, ey1)) continue;
+            float d = MathF.Abs(e.X - x);
+            if (d < best) { best = d; target = e; }
+        }
+        if (target == null) return false;
+        target.HitDir = f;
+        HitEnemy(target, st.DanoFacada, f * 3);
+        // golpe: risco branco em arco na frente do heroi
+        for (int i = 0; i < 7; i++)
+        {
+            float a = -0.9f + i * 0.3f;
+            AddPart(PKind.Pixel, x + f * (6 + MathF.Cos(a) * 7), y - 10 + MathF.Sin(a) * 7, f * 30, 0, 0.09f, 2, i % 3 == 0 ? White : Hex(0xdfe8f0));
+        }
+        AddPart(PKind.Flash, target.X - f * 3, target.Y - 11, 0, 0, 0.05f, 4, White);
+        sfx.Play("slash", ghost ? 0.4f : 1f, 0.75f);
+        if (!ghost) { shake = MathF.Max(shake, 1.5f); hitStop = MathF.Max(hitStop, 0.04f); }
+        return true;
+    }
+
     /// <summary>Disparo da arma principal; usado pelo jogador e pelos fantasmas (replay).</summary>
     void FireWeapon(int ch, float x, float y, int f, bool ghost)
     {
+        if (TryStab(ch, x, y, f, ghost)) return;          // inimigo colado a frente: facada em vez de tiro
         float vol = ghost ? 0.4f : 1f;
         var st = HeroConfig.Of(ch);
         float Spread() => st.DispersaoTiro > 0 ? S.Rng.Range(-st.DispersaoTiro, st.DispersaoTiro) : 0;
@@ -777,6 +815,9 @@ public sealed partial class Game
                         if (p.Y > K.ROWS * K.T + 30) p.Done = true;
                     }
                     break;
+                case PropKind.Car:
+                    UpdateCar(p);
+                    break;
                 case PropKind.Cage:
                 {
                     // gravidade: se o chao embaixo sumir, a jaula cai (e solta o que estava em cima dela)
@@ -790,6 +831,7 @@ public sealed partial class Game
                         p.Done = true;
                         CageLeft(p.X, p.Y);
                         timeOuts++;
+                        S.PhaseRescues++;
                         S.Score += 500;
                         sfx.Play("rescue");
                         AddText(p.X, p.Y - 34, "RESGATADO! +1 TIME OUT", Green);
@@ -940,6 +982,7 @@ public sealed partial class Game
                 HitHostage(p, true);
                 if (!b.Pierce) { b.Dead = true; return; }
             }
+            if (CarHit(b, bx0, by0, bx1, by1)) return;
             foreach (var p in S.Props)
             {
                 if (p.Done || p.Kind != PropKind.Barrel || p.Fuse >= 0) continue;
@@ -961,6 +1004,7 @@ public sealed partial class Game
                 KillPlayer(b.OwnerId, b.Kind == BulletKind.EBullet ? "BALEADO" : "EXPLODIDO");
                 return;
             }
+            if (CarHit(b, bx0, by0, bx1, by1)) return;
             foreach (var p in S.Props)
             {
                 if (p.Done || p.Kind != PropKind.Barrel || p.Fuse >= 0) continue;

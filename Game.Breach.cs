@@ -286,6 +286,7 @@ public sealed partial class Game
         if (p.Hp == 1 && !P.Dead && Hit(P.X - 4, P.Y - PH, P.X + 4, P.Y, p.X - 5, p.Y - 14, p.X + 5, p.Y))
         {
             p.Hp = 2;
+            S.PhaseRescues++;
             S.Score += 300;
             glorbCount += 4;
             if (glorbCount >= 12) { glorbCount -= 12; P.Specials = Math.Min(P.Specials + 1, 9); AddText(P.X, P.Y - 34, "+1 ESPECIAL", Magenta); }
