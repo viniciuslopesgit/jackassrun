@@ -88,34 +88,30 @@ public sealed class CharDef
     public float FireRate = 0.1f, Speed = 88f;
 }
 
+/// <summary>Herois jogaveis. Indices: 0 Batman, 1 Tomb Raider, 2 Homem-Aranha.
+/// ATENCAO: personagens de terceiros, so para teste; troque por herois originais antes de publicar.</summary>
 public static class Chars
 {
+    public const int Batman = 0, TombRaider = 1, Spider = 2;
+
     public static readonly CharDef[] All =
     {
         new CharDef {
-            Name = "JEAN ROCKFIRE", Tag = "O CLASSICO", Weapon = "METRALHADORA", Special = "GRANADA", FireRate = 0.085f,
-            Look = new Look { Skin = Hex(0xdaa98c), Hair = Hex(0x141018), Shirt = Hex(0x2c4a28), Pants = Hex(0x5a3c26),
-                Boots = Hex(0x0c0c12), Gun = Hex(0x2e3238), Accent = Hex(0xc0241c), Hat = 0, GunLen = 7, GunH = 2, Wpn = 0 },
+            Name = "BATMAN", Tag = "O CAVALEIRO DAS TREVAS", Weapon = "BATARANGUE", Special = "BOMBA DE FUMACA", FireRate = 0.36f, Speed = 86f,
+            Look = new Look { Skin = Hex(0xe8b898), Hair = Hex(0x26262e), Shirt = Hex(0x5c5c68), Pants = Hex(0x4a4a56),
+                Boots = Hex(0x1c1c24), Gun = Hex(0x1c1c24), Accent = Hex(0xe8c020), Hat = 10, Wpn = 7,
+                Arms = Hex(0x5c5c68), SuitArms = true, Belt = Hex(0xe8c020), CustomBelt = true, Cape = true },
         },
         new CharDef {
-            Name = "SHOTGUN SHEILA", Tag = "ESTRAGO DE PERTO", Weapon = "ESCOPETA", Special = "DINAMITE", FireRate = 0.42f,
-            Look = new Look { Skin = Hex(0xf5c49c), Hair = Hex(0xf0d048), Shirt = Hex(0x3a5ea8), Pants = Hex(0x2c3e6e),
-                Boots = Hex(0x4a2a16), Gun = Hex(0x6a4a2a), Accent = Hex(0x8a5a2a), Hat = 8, GunLen = 8, GunH = 2, Wpn = 2 },
+            Name = "TOMB RAIDER", Tag = "ARQUEOLOGA ACROBATA", Weapon = "PISTOLAS DUPLAS", Special = "FLECHA EXPLOSIVA", FireRate = 0.11f, Speed = 92f,
+            Look = new Look { Skin = Hex(0xe0a884), Hair = Hex(0x4a2c1c), Shirt = Hex(0x2a8a8a), Pants = Hex(0x6a4a2a),
+                Boots = Hex(0x3a2416), Gun = Hex(0x2a2a30), Accent = Hex(0x6a4a2a), Hat = 11, Wpn = 10 },
         },
         new CharDef {
-            Name = "DOC CHRONO", Tag = "CIENTISTA LOUCO", Weapon = "LASER PERFURANTE", Special = "CONGELAR TEMPO", FireRate = 0.3f,
-            Look = new Look { Skin = Hex(0xe8b088), Hair = Hex(0xeeeef6), Shirt = Hex(0xe4e4ea), Pants = Hex(0x4a4a6a),
-                Boots = Hex(0x2a2a3a), Gun = Hex(0x3ac8ff), Accent = Hex(0x36e0ff), Hat = 2, GunLen = 7, GunH = 2, Wpn = 3 },
-        },
-        new CharDef {
-            Name = "BLASTRONAUTA", Tag = "TUDO EXPLODE", Weapon = "BAZUCA", Special = "JATO EXPLOSIVO", FireRate = 0.55f, Speed = 80f,
-            Look = new Look { Skin = Hex(0xc08060), Hair = Hex(0xf4f4f4), Shirt = Hex(0xe87a1e), Pants = Hex(0xd06a16),
-                Boots = Hex(0x4a4a4a), Gun = Hex(0x55702f), Accent = Hex(0x59d6ff), Hat = 4, GunLen = 10, GunH = 3, Wpn = 4 },
-        },
-        new CharDef {
-            Name = "NAOMI KATANA", Tag = "LAMINA RAPIDA", Weapon = "KATANA", Special = "DASH SOMBRIO", FireRate = 0.2f, Speed = 98f,
-            Look = new Look { Skin = Hex(0xf0c0a0), Hair = Hex(0x1c1c2a), Shirt = Hex(0x33335a), Pants = Hex(0x454570),
-                Boots = Hex(0x101018), Gun = Hex(0xdfe8f0), Accent = Hex(0xe0283c), Hat = 3, GunLen = 10, GunH = 1, Blade = true, Wpn = 5 },
+            Name = "HOMEM-ARANHA", Tag = "AMIGAO DA VIZINHANCA", Weapon = "TEIA", Special = "LEQUE DE TEIAS", FireRate = 0.3f, Speed = 96f,
+            Look = new Look { Skin = Hex(0xc81a22), Hair = Hex(0xc81a22), Shirt = Hex(0xc81a22), Pants = Hex(0x1e3c9c),
+                Boots = Hex(0xc81a22), Gun = Hex(0xc81a22), Accent = Hex(0x1e3c9c), Hat = 12, Wpn = 7,
+                Arms = Hex(0xc81a22), SuitArms = true, Belt = Hex(0xa81418), CustomBelt = true },
         },
     };
 }

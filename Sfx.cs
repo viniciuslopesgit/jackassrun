@@ -12,7 +12,7 @@ public sealed unsafe class Sfx
     readonly Random rnd = new(7);
     readonly bool ok;
     Sound music;
-    public bool MusicOn = true;
+    public bool Muted = true;      // o jogo comeca sem som; M liga/desliga (musica e efeitos)
 
     public Sfx()
     {
@@ -150,7 +150,7 @@ public sealed unsafe class Sfx
 
     public void Play(string n, float vol = 1, float pitch = 1)
     {
-        if (!ok || !snd.TryGetValue(n, out var a)) return;
+        if (!ok || Muted || !snd.TryGetValue(n, out var a)) return;
         int i = rr.GetValueOrDefault(n);
         rr[n] = (i + 1) % a.Length;
         var s = a[i];
@@ -163,7 +163,7 @@ public sealed unsafe class Sfx
     public void UpdateMusic(float pitch, float vol)
     {
         if (!ok) return;
-        if (!MusicOn) { if (Raylib.IsSoundPlaying(music)) Raylib.StopSound(music); return; }
+        if (Muted) { if (Raylib.IsSoundPlaying(music)) Raylib.StopSound(music); return; }
         Raylib.SetSoundPitch(music, pitch);
         Raylib.SetSoundVolume(music, vol);
         if (!Raylib.IsSoundPlaying(music)) Raylib.PlaySound(music);

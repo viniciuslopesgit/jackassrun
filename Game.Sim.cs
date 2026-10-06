@@ -213,7 +213,7 @@ public sealed partial class Game
             {
                 if (edgePush && dir <= 0) { dir = 1; p.Facing = 1; }
                 p.Climbing = true; p.WallDir = dir;
-                p.VY = MathF.Min(p.VY, -70);
+                p.VY = MathF.Min(p.VY, -HeroConfig.Of(p.Char).VelocidadeEscalada);
                 if (fx.Next(6) == 0) AddPart(PKind.Pixel, p.X + dir * 4, p.Y - 4, -dir * 20, 10, 0.3f, 1, Hex(0xc8b8a0));
             }
 
@@ -221,7 +221,7 @@ public sealed partial class Game
             {
                 if (p.OnGround || p.Coyote > 0)
                 {
-                    p.VY = -238; p.OnGround = false; p.Coyote = 0;
+                    p.VY = -HeroConfig.Of(p.Char).ForcaPulo; p.OnGround = false; p.Coyote = 0;
                     sfx.Play("jump");
                     for (int k = 0; k < 5; k++) AddPart(PKind.Smoke, p.X, p.Y, fx.Next(-30, 30), -fx.Next(0, 15), 0.35f, 2, Hex(0xe8dcc8));
                 }
@@ -230,9 +230,19 @@ public sealed partial class Game
                     p.VY = -225; p.VX = -p.WallDir * 130; p.Facing = -p.WallDir;
                     sfx.Play("jump");
                 }
+                else if (p.AirJumps > 0)
+                {
+                    // pulo duplo (Tomb Raider)
+                    p.AirJumps--; p.VY = -220;
+                    sfx.Play("jump", 1, 1.3f);
+                    for (int k = 0; k < 4; k++) AddPart(PKind.Smoke, p.X, p.Y, fx.Next(-20, 20), fx.Next(0, 15), 0.3f, 1.5f, Hex(0xe8dcc8));
+                }
             }
             if (!i.JumpHeld && p.VY < 0 && !p.Climbing) p.VY += K.GRAV * dt * 1.4f;
             p.VY = MathF.Min(p.VY + K.GRAV * dt, 420);
+            // planar segurando pular (Batman com a capa)
+            float glide = HeroConfig.Of(p.Char).QuedaPlanando;
+            if (glide > 0 && i.JumpHeld && !p.Climbing && p.VY > glide) p.VY = glide;
         }
 
         // atirar
@@ -240,9 +250,8 @@ public sealed partial class Game
         {
             p.FireT = ch.FireRate;
             FireWeapon(p.Char, p.X, p.Y, p.Facing, false);
-            p.MuzzleT = 0.05f; p.Recoil = p.Char == 1 || p.Char == 3 ? 3 : 1;
+            p.MuzzleT = 0.05f; p.Recoil = p.Char == Chars.TombRaider ? 1 : 0;
             fired = true;
-            if (p.Char == 1 && p.OnGround) p.VX -= p.Facing * 60;
         }
         // especial
         if (i.Special && p.Specials > 0)
@@ -250,8 +259,6 @@ public sealed partial class Game
             p.Specials--;
             special = true;
             SpecialEffect(p.Char, p.X, p.Y, p.Facing, false);
-            if (p.Char == 3) { p.VY = -340; p.OnGround = false; }
-            if (p.Char == 4) { p.DashT = 0.16f; p.VX = p.Facing * 430; p.InvulnT = MathF.Max(p.InvulnT, 0.3f); }
         }
 
         if (p.DashT <= 0) TryKick(p, dir);
@@ -259,6 +266,7 @@ public sealed partial class Game
         bool wasGround = p.OnGround;
         p.OnGround = MoveBody(ref p.X, ref p.Y, ref p.VX, ref p.VY, 3.5f, PH, out _);
         if (wasGround && !p.OnGround && p.VY >= 0) p.Coyote = 0.08f;
+        if (p.OnGround) p.AirJumps = HeroConfig.Of(p.Char).PulosNoAr;
         TryStomp(p, preVY);
         if (!wasGround && p.OnGround)
         {
@@ -377,48 +385,57 @@ public sealed partial class Game
             case BulletKind.EBullet: b.W = 4; b.H = 4; b.Life = 2.5f; b.Dmg = 1; break;
             case BulletKind.ERocket: b.W = 6; b.H = 4; b.Life = 3f; b.Dmg = 1; b.ExplodeR = 22; break;
             case BulletKind.EBomb: b.W = 5; b.H = 5; b.Life = 3f; b.Dmg = 1; b.Grav = 300; b.ExplodeR = 22; break;
+            case BulletKind.Batarang: b.W = 8; b.H = 5; b.Life = 1.6f; b.Dmg = 2; b.Pierce = true; break;
+            case BulletKind.Web: b.W = 6; b.H = 5; b.Life = 0.7f; b.Dmg = 1; break;
+            case BulletKind.Arrow: b.W = 8; b.H = 2; b.Life = 2f; b.Dmg = 2; b.Grav = 260; b.ExplodeR = 28; break;
         }
         S.Bullets.Add(b);
         return b;
     }
 
+    /// <summary>Dano de um tiro num bloco: do HeroConfig se veio de um heroi, senao o dano normal do tiro.</summary>
+    int BlockDmg(Bullet b, int tx, int ty) => b.Char >= 0 ? HeroConfig.Of(b.Char).DanoBloco(Ter.Type(tx, ty)) : b.Dmg;
+
+    /// <summary>Tempo que o batarangue passa indo antes de voltar (metade do AlcanceTiro do Batman).</summary>
+    static float BatarangOut => HeroConfig.Stats[Chars.Batman].AlcanceTiro * 0.5f;
+
     /// <summary>Disparo da arma principal; usado pelo jogador e pelos fantasmas (replay).</summary>
     void FireWeapon(int ch, float x, float y, int f, bool ghost)
     {
-        var look = Chars.All[ch].Look;
-        var gun = Sprites.GunOf(look);
-        float gy = y + gun.MuzzleY, mx = x + f * gun.MuzzleX;
         float vol = ghost ? 0.4f : 1f;
+        var st = HeroConfig.Of(ch);
+        float Spread() => st.DispersaoTiro > 0 ? S.Rng.Range(-st.DispersaoTiro, st.DispersaoTiro) : 0;
+        Bullet Shot(BulletKind k, float bx, float by)
+        {
+            var b = AddBullet(k, bx, by, f * st.VelocidadeTiro, Spread(), true, K.PLAYER_ID, ghost);
+            b.Dmg = st.DanoTiro; b.Life = st.AlcanceTiro; b.Char = ch;
+            return b;
+        }
         switch (ch)
         {
-            case 0:
-                AddBullet(BulletKind.Bullet, mx, gy, f * 360, S.Rng.Range(-14, 14), true, K.PLAYER_ID, ghost);
-                sfx.Play("shoot", vol);
+            case Chars.Batman:
+            {
+                // batarangue: vai, para e volta para a mao, atravessando inimigos
+                // AlcanceTiro = tempo de ida e volta: metade indo, metade voltando (+ folga para alcancar a mao)
+                var b = Shot(BulletKind.Batarang, x + f * 8, y - 10);
+                b.Life = ghost ? MathF.Min(st.AlcanceTiro * 0.5f, 0.45f) : st.AlcanceTiro + 1f;
+                sfx.Play("slash", vol, 1.4f);
+                break;
+            }
+            case Chars.TombRaider:
+            {
+                // pistolas duplas: alterna a mao (uma mais alta, outra mais baixa)
+                bool hi = ghost ? (S.Frame & 8) == 0 : (P.AltHand = !P.AltHand);
+                float gy = y + (hi ? -9 : -7), mx = x + f * (hi ? 10 : 8);
+                Shot(BulletKind.Bullet, mx, gy);
+                sfx.Play("shoot", vol, 1.15f);
                 AddPart(PKind.Shell, x, gy, -f * fx.Next(30, 70), -fx.Next(70, 130), 1.2f, 1, Hex(0xe0b040), 500);
                 break;
-            case 1:
-                for (int k = 0; k < 6; k++)
-                {
-                    var b = AddBullet(BulletKind.Pellet, mx, gy, f * S.Rng.Range(280, 340), -75 + k * 30 + S.Rng.Range(-10, 10), true, K.PLAYER_ID, ghost);
-                    b.Life += S.Rng.Range(0, 0.08f);
-                }
-                sfx.Play("shotgun", vol);
-                if (!ghost) shake = MathF.Max(shake, 2);
-                for (int k = 0; k < 4; k++) AddPart(PKind.Smoke, mx, gy, f * fx.Next(10, 50), fx.Next(-15, 15), 0.4f, 2, Hex(0xd0d0d0));
-                break;
-            case 2:
-                AddBullet(BulletKind.Laser, mx + f * 4, gy, f * 560, 0, true, K.PLAYER_ID, ghost);
-                sfx.Play("laser", vol);
-                break;
-            case 3:
-                AddBullet(BulletKind.Rocket, mx, gy - 1, f * 90, 0, true, K.PLAYER_ID, ghost);
-                sfx.Play("rocket", vol);
-                if (!ghost) shake = MathF.Max(shake, 1.5f);
-                for (int k = 0; k < 6; k++) AddPart(PKind.Smoke, x - f * 6, gy, -f * fx.Next(20, 70), fx.Next(-20, 10), 0.5f, 3, Hex(0xc8c8c8));
-                break;
-            case 4:
-                AddBullet(BulletKind.Slash, x + f * 11, y - 11, 0, 0, true, K.PLAYER_ID, ghost);
-                sfx.Play("slash", vol);
+            }
+            default:
+                // teia: prende (atordoa) o inimigo atingido
+                Shot(BulletKind.Web, x + f * 8, y - 9);
+                sfx.Play("slash", vol, 1.8f);
                 break;
         }
     }
@@ -426,31 +443,34 @@ public sealed partial class Game
     void SpecialEffect(int ch, float x, float y, int f, bool ghost)
     {
         float vol = ghost ? 0.5f : 1f;
+        var st = HeroConfig.Of(ch);
         switch (ch)
         {
-            case 0:
-                AddBullet(BulletKind.Grenade, x + f * 4, y - 17, f * 160, -180, true, K.PLAYER_ID, ghost);
-                sfx.Play("jump", vol, 0.6f);
+            case Chars.Batman:
+                // bomba de fumaca: atordoa todo mundo por perto
+                foreach (var e in S.Enemies)
+                    if (!e.Dead && e.Kind is not (EnemyKind.Flyer or EnemyKind.Turret) && MathF.Abs(e.X - x) < st.RaioEspecial && MathF.Abs(e.Y - y) < 40)
+                    { Stun(e); e.StunT = st.AtordoamentoEspecial; }
+                for (int k = 0; k < 16; k++)
+                    AddPart(PKind.Smoke, x + R(-40, 40), y - R(0, 24), R(-30, 30), -R(5, 25), R(1f, 1.8f), R(3, 6), A(Hex(0x8a8a94), 0.9f));
+                sfx.Play("boom", 0.4f * vol, 0.6f);
+                AddText(x, y - 30, "FUMACA!", White);
+                if (!ghost) P.InvulnT = MathF.Max(P.InvulnT, 0.6f);
                 break;
-            case 1:
-                AddBullet(BulletKind.Dynamite, x + f * 4, y - 17, f * 130, -170, true, K.PLAYER_ID, ghost);
-                sfx.Play("jump", vol, 0.5f);
+            case Chars.TombRaider:
+                AddBullet(BulletKind.Arrow, x + f * 8, y - 12, f * st.VelocidadeEspecial, -60, true, K.PLAYER_ID, ghost).ExplodeR = st.RaioEspecial;
+                sfx.Play("rocket", 0.6f * vol, 1.6f);
                 break;
-            case 2:
-                S.FreezeT = 3.5f;
-                sfx.Play("freeze", vol);
-                AddPart(PKind.Ring, x, y - 11, 0, 0, 0.6f, 120, Cyan);
-                AddPart(PKind.Ring, x, y - 11, 0, 0, 0.4f, 60, White);
-                flash = MathF.Max(flash, 0.3f);
-                break;
-            case 3:
-                Explode(x, y + 2, 24, true, K.PLAYER_ID);
-                break;
-            case 4:
-                var b = AddBullet(BulletKind.Slash, x + f * 34, y - 10, 0, 0, true, K.PLAYER_ID, ghost);
-                b.W = 70; b.H = 18; b.Dmg = 4; b.Life = 0.14f;
-                sfx.Play("slash", vol, 0.7f);
-                for (int k = 0; k < 10; k++) AddPart(PKind.Pixel, x + f * k * 7, y - fx.Next(2, 16), 0, 0, 0.35f, 3, A(Chars.All[4].Look.Accent, 0.7f));
+            default:
+                // leque de teias
+                int n = Math.Max(1, st.QuantidadeEspecial);
+                for (int k = 0; k < n; k++)
+                {
+                    float vy = (k - (n - 1) / 2f) * st.AberturaEspecial;
+                    var w = AddBullet(BulletKind.Web, x + f * 8, y - 9, f * st.VelocidadeEspecial, vy, true, K.PLAYER_ID, ghost);
+                    w.Dmg = st.DanoTiro; w.T = -1;                         // T < 0 marca teia do especial
+                }
+                sfx.Play("slash", vol, 1.5f);
                 break;
         }
     }
@@ -668,9 +688,17 @@ public sealed partial class Game
                     }
                     break;
                 case PropKind.Cage:
+                {
+                    // gravidade: se o chao embaixo sumir, a jaula cai (e solta o que estava em cima dela)
+                    float vx = 0, cx = p.X, cy = p.Y, cvy = p.VY + K.GRAV * dt;
+                    MoveBody(ref cx, ref cy, ref vx, ref cvy, 8f, 24, out _);
+                    if (cy > p.Y + 0.001f && p.VY == 0) CageLeft(p.X, p.Y);    // estava parada e comecou a cair
+                    p.X = cx; p.Y = cy; p.VY = cvy;
+                    if (p.Y > K.ROWS * K.T + 30) p.Done = true;
                     if (!P.Dead && Hit(P.X - 4, P.Y - 16, P.X + 4, P.Y, p.X - 9, p.Y - 28, p.X + 9, p.Y))
                     {
                         p.Done = true;
+                        CageLeft(p.X, p.Y);
                         timeOuts++;
                         S.Score += 500;
                         sfx.Play("rescue");
@@ -679,6 +707,7 @@ public sealed partial class Game
                         flash = 0.25f;
                     }
                     break;
+                }
                 case PropKind.Hostage:
                     UpdateHostage(p);
                     break;
@@ -728,6 +757,13 @@ public sealed partial class Game
             if (b.Kind == BulletKind.Dynamite && fx.Next(2) == 0)
                 AddPart(PKind.Spark, b.X, b.Y - 4, fx.Next(-30, 30), -fx.Next(20, 60), 0.2f, 1, Yellow);
             b.VY += b.Grav * dt;
+            if (b.Kind == BulletKind.Batarang && !b.Ghost && b.T > BatarangOut && !P.Dead)
+            {
+                float dx = P.X - b.X, dy = P.Y - 10 - b.Y, d = MathF.Max(1, MathF.Sqrt(dx * dx + dy * dy));
+                if (d < 10) { b.Dead = true; continue; }           // voltou para a mao
+                float rs = HeroConfig.Stats[Chars.Batman].VelocidadeTiro * 1.1f;
+                b.VX = dx / d * rs; b.VY = dy / d * rs;
+            }
 
             if (b.Kind == BulletKind.Slash) { SlashHits(b); continue; }
 
@@ -753,7 +789,14 @@ public sealed partial class Game
                     if (b.FromPlayer)
                     {
                         if (b.ExplodeR > 0) { b.Dead = true; Explode(b.X, b.Y, b.ExplodeR, true, b.OwnerId); break; }
-                        DamageTile(tx, ty, b.Dmg);
+                        if (b.Kind == BulletKind.Batarang && !b.Ghost)
+                        {
+                            // bate na parede, danifica e comeca a voltar
+                            DamageTile(tx, ty, BlockDmg(b, tx, ty));
+                            b.X = ox; b.Y = oy; b.T = MathF.Max(b.T, BatarangOut);
+                            break;
+                        }
+                        DamageTile(tx, ty, BlockDmg(b, tx, ty));
                         // o laser atravessa terreno (menos aco)
                         if (b.Kind == BulletKind.Laser && !Terrain.Unbreakable(Ter.Type(tx, ty))) continue;
                         b.Dead = true;
@@ -782,6 +825,12 @@ public sealed partial class Game
                 if (!Hit(bx0, by0, bx1, by1, x0, y0, x1, y1)) continue;
                 if (b.ExplodeR > 0) { b.Dead = true; Explode(b.X, b.Y, b.ExplodeR, true, b.OwnerId); return; }
                 HitEnemy(e, b.Dmg, MathF.Sign(b.VX) * 1.5f);
+                if (b.Kind == BulletKind.Web && !e.Dead && e.Kind is not (EnemyKind.Flyer or EnemyKind.Turret))
+                {
+                    var stw = HeroConfig.Stats[Chars.Spider];
+                    float stunT = b.T < 0 ? stw.AtordoamentoEspecial : stw.AtordoamentoTiro;
+                    if (stunT > 0) { Stun(e); e.StunT = stunT; }       // preso na teia
+                }
                 AddPart(PKind.Flash, b.X, b.Y, 0, 0, 0.05f, 3, White);
                 if (b.Pierce) b.LastHit = e.Id; else { b.Dead = true; return; }
             }

@@ -9,7 +9,7 @@ namespace JackassRun;
 public static class DesignExport
 {
     public static readonly string[] EraSlug = { "selva", "jurassico", "medieval", "futuro" };
-    public static readonly string[] HeroSlug = { "jean_rockfire", "shotgun_sheila", "doc_chrono", "blastronauta", "naomi_katana" };
+    public static readonly string[] HeroSlug = { "batman", "tomb_raider", "homem_aranha" };
     public static readonly string[] GruntSlug = { "soldado", "bazuqueiro", "brutamontes", "faca", "homem_bomba" };
 
     /// <summary>Indice da folha de cada tipo de inimigo a pe (soldado, bazuqueiro, brutamontes, faca, homem-bomba).</summary>
@@ -92,7 +92,7 @@ public static class DesignExport
         Need(PropPath(root, "barril"), 32, 16, () => { Barrel(8, 15, false, 0); Barrel(24, 15, true, 0); });
         Need(PropPath(root, "glorb"), 64, 16, () => { for (int f = 0; f < 4; f++) Glorb(8 + f * 16, 8, f * 0.26f); });
         Need(PropPath(root, "jaula"), 64, 48, () => { CageBars(16, 47, 0f); CageBars(48, 47, 0.13f); });
-        Need(PropPath(root, "projeteis"), 32 * 9, 32, () => { for (int k = 0; k < 9; k++) { Projectile(k, 16 + k * 32, 8, 0f); Projectile(k, 16 + k * 32, 24, 0.05f); } });
+        Need(PropPath(root, "projeteis"), 32 * 12, 32, () => { for (int k = 0; k < 12; k++) { Projectile(k, 16 + k * 32, 8, 0f); Projectile(k, 16 + k * 32, 24, 0.05f); } });
 
         string readme = Path.Combine(root, "LEIAME.md");
         if (!File.Exists(readme)) { File.WriteAllText(readme, Readme); n++; }
@@ -195,6 +195,21 @@ public static class DesignExport
                 PixelCircle(x, y, 3, Hex(0xa8a8a8));
                 PixelCircle(x, y, 2, White);
                 Rect(x - 1, y - 1, 1 + (time > 0 ? 1 : 0), 1, White);
+                break;
+            case 9: // batarangue (quadro B = girado)
+                if (time == 0) { Rect(x - 5, y, 11, 2, Hex(0x2a2a34)); Rect(x - 6, y - 1, 2, 2, Hex(0x2a2a34)); Rect(x + 5, y - 1, 2, 2, Hex(0x2a2a34)); Rect(x - 1, y - 1, 3, 1, Hex(0x4a4a58)); }
+                else { Rect(x, y - 5, 2, 11, Hex(0x2a2a34)); Rect(x - 1, y - 6, 2, 2, Hex(0x2a2a34)); Rect(x - 1, y + 5, 2, 2, Hex(0x2a2a34)); Rect(x + 1, y - 1, 1, 3, Hex(0x4a4a58)); }
+                break;
+            case 10: // teia
+                PixelCircle(x, y, 2, White);
+                Rect(x - 4, y, 3, 1, Hex(0xd8d8e0)); Rect(x - 3, y - 2, 1, 1, Hex(0xd8d8e0)); Rect(x - 3, y + 2, 1, 1, Hex(0xd8d8e0));
+                if (time > 0) { Rect(x + 2, y - 3, 1, 1, White); Rect(x + 2, y + 3, 1, 1, White); }
+                break;
+            case 11: // flecha explosiva
+                Rect(x - 7, y, 11, 1, Hex(0x8a5a2a));
+                Rect(x - 8, y - 1, 2, 3, Hex(0xd8d0c0));
+                Rect(x + 4, y - 1, 3, 3, Hex(0xd8342a));
+                Rect(x + 5, y, 1, 1, time == 0 ? Yellow : Orange);
                 break;
             case 8: // bomba
                 PixelCircle(x, y, 4, Hex(0x2c2c32)); PixelCircle(x, y, 3, Hex(0x45454e));
@@ -504,7 +519,7 @@ Os prisioneiros nas jaulas usam a folha do heroi correspondente.
 - **jaula.png**: 2 quadros 32x48, base em (16, 47) (bandeira balancando). O prisioneiro e desenhado atras.
 - **projeteis.png**: celulas 32x16, centro (16, 8), apontando para a direita. Linha 0 e 1 = quadros A e B.
   Colunas: 0 bala, 1 chumbo, 2 laser, 3 foguete, 4 foguete inimigo, 5 granada, 6 dinamite,
-  7 bala inimiga (pinte de branco/cinza: o jogo aplica a cor da era), 8 bomba.
+  7 bala inimiga (pinte de branco/cinza: o jogo aplica a cor da era), 8 bomba, 9 batarangue, 10 teia, 11 flecha.
 
 ## tiles/<era>.png
 Folha de 8x5 tiles de **16x16** (o heroi tem ~1 bloco de altura, como no Broforce):

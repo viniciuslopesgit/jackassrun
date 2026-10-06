@@ -23,7 +23,7 @@ public static class Art
     static readonly List<Texture2D> loaded = new();
 
     public const int ProjBullet = 0, ProjPellet = 1, ProjLaser = 2, ProjRocket = 3, ProjERocket = 4,
-        ProjGrenade = 5, ProjDynamite = 6, ProjEBullet = 7, ProjBomb = 8;
+        ProjGrenade = 5, ProjDynamite = 6, ProjEBullet = 7, ProjBomb = 8, ProjBatarang = 9, ProjWeb = 10, ProjArrow = 11;
 
     /// <summary>Procura a pasta design/: variavel JACKASS_DESIGN, depois a pasta do projeto (subindo a partir
     /// do executavel), por fim ao lado do executavel.</summary>
@@ -41,6 +41,7 @@ public static class Art
     public static int Load()
     {
         Root = FindRoot();
+        HeroConfig.Apply();
         int generated = DesignExport.EnsureAll(Root);
         Unload();
         int eras = Eras.All.Length;

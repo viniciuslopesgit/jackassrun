@@ -411,10 +411,10 @@ public static partial class Gfx
         {
             var cc = Mul(L.Hair, 0.9f); var cl = Mul(L.Hair, 1.35f);
             int topY = -13 + bob;
-            for (int y = topY; y <= -1; y++)
+            for (int y = topY; y <= -4; y++)
             {
                 int k = y - topY;
-                int w = 2 + k / 2 + (int)(flow * k / 3) + (int)MathF.Round(MathF.Sin(t * 12 + k * 0.6f) * flow * 1.4f);
+                int w = 1 + k / 3 + (int)(flow * k / 5) + (int)MathF.Round(MathF.Sin(t * 12 + k * 0.6f) * flow);
                 P(-3 - w + lean, y, w + 1, 1, k % 4 == 1 ? cl : cc);
             }
         }

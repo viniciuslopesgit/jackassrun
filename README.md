@@ -20,7 +20,7 @@ cd JackassRun && dotnet run
 | Especial | K / X | B |
 | Time Out (voltar no tempo) | L / C | Y |
 | Pausa | Esc / P | Start |
-| Tela cheia / Música | F / M | — |
+| Tela cheia / Ligar som (começa mudo) | F / M | — |
 
 Segure contra uma parede no ar para escalar.
 
@@ -43,13 +43,19 @@ Segure contra uma parede no ar para escalar.
 
 ## Heróis
 
-| Herói | Arma | Especial |
-|---|---|---|
-| Jean Rockfire | Metralhadora | Granada |
-| Shotgun Sheila | Escopeta | Dinamite |
-| Doc Chrono | Laser perfurante (atravessa paredes) | Congelar o tempo |
-| Blastronauta | Bazuca | Jato explosivo |
-| Naomi Katana | Katana (rebate balas) | Dash sombrio |
+> Personagens de terceiros, só para teste: troque por heróis originais antes de publicar/vender.
+
+| Herói | Arma | Especial | Movimento |
+|---|---|---|---|
+| Batman | Batarangue (vai e volta, atravessa) | Bomba de fumaça (atordoa em volta) | Plana com a capa (segure pular) |
+| Tomb Raider | Pistolas duplas | Flecha explosiva | Pulo duplo |
+| Homem-Aranha | Teia (prende/atordoa) | Leque de teias | Pula mais alto, escala mais rápido |
+
+## Variáveis dos heróis (`HeroConfig.cs`)
+
+Velocidade de corrida, força do pulo, pulos no ar, intervalo/velocidade/dano/alcance do tiro, atordoamento,
+especiais iniciais, raio e quantidade do especial... Cada variável tem um comentário explicando.
+Edite os números de cada herói em `HeroConfig.cs` e rode o jogo de novo (`dotnet run`).
 
 ## Arte editável (pasta `design/`)
 

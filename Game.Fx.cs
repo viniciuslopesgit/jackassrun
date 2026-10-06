@@ -10,7 +10,7 @@ public sealed partial class Game
 {
     readonly List<Decal> decals = new();
     readonly List<(int x, int y)> collapseQ = new();
-    readonly List<(int x, int y)> brokenQ = new();     // blocos destruidos neste frame
+    readonly List<(int x, int y, bool forced)> brokenQ = new();     // espacos abertos neste frame (forced = cai sempre)
 
     static readonly Color BloodRed = Hex(0xc0121e), BloodDark = Hex(0x7a0a12), Oil = Hex(0x2a2638);
     static readonly Color SmokeDark = Hex(0x463e40), FireRed = Hex(0xd8401e);
@@ -167,7 +167,7 @@ public sealed partial class Game
                     boom ? 1.8f : 1.2f, fx.Next(2, 4), c, 540);
             }
             if (!boom || fx.Next(2) == 0) AddPart(PKind.Smoke, cx, cy, R(-12, 12), -R(5, 25), 0.7f, 3, A(dust, 0.85f));
-            brokenQ.Add((tx, ty));
+            brokenQ.Add((tx, ty, false));
             RevealNear(tx, ty);
             collapseQ.Add((tx - 1, ty)); collapseQ.Add((tx + 1, ty));
             collapseQ.Add((tx, ty - 1)); collapseQ.Add((tx, ty + 1));
@@ -192,13 +192,13 @@ public sealed partial class Game
         if (brokenQ.Count > 0)
         {
             bool any = false;
-            foreach (var (bx, by) in brokenQ)
+            foreach (var (bx, by, forced) in brokenQ)
             {
                 if (Ter.Solid(bx, by)) continue;          // ja foi preenchido por outro bloco
                 int above = by - 1;
                 if (!Ter.Solid(bx, above) || Terrain.Unbreakable(Ter.Type(bx, above))) continue;
                 // preso pelos lados: so as vezes cai (terra segura mais, caixote quase sempre cai)
-                if (Ter.Solid(bx - 1, above) || Ter.Solid(bx + 1, above))
+                if (!forced && (Ter.Solid(bx - 1, above) || Ter.Solid(bx + 1, above)))
                 {
                     float chance = Ter.Type(bx, above) switch
                     {
@@ -257,6 +257,16 @@ public sealed partial class Game
         collapseQ.Clear();
     }
 
+    const float CageH = 28;
+
+    /// <summary>A jaula saiu do lugar (caiu ou foi aberta): o que estava apoiado em cima dela cai.</summary>
+    void CageLeft(float x, float y)
+    {
+        int row = (int)MathF.Floor((y - CageH) / K.T);
+        for (int tx = (int)MathF.Floor((x - 9) / K.T); tx <= (int)MathF.Floor((x + 8) / K.T); tx++)
+            brokenQ.Add((tx, row, true));
+    }
+
     void UpdateFalling()
     {
         float dt = K.DT;
@@ -278,7 +288,20 @@ public sealed partial class Game
                 continue;
             }
             int below = (int)MathF.Floor((ny + K.T) / K.T);
-            if (Ter.Solid(tx, below))
+            // pousa em cima de uma jaula (fica no bloco logo acima do topo dela)
+            bool onCage = false;
+            foreach (var cg in S.Props)
+            {
+                if (cg.Done || cg.Kind != PropKind.Cage) continue;
+                float top = cg.Y - CageH;
+                if (f.X < cg.X + 9 && f.X + K.T > cg.X - 9 && ny + K.T >= top && f.Y + K.T <= top + 6)
+                {
+                    below = (int)MathF.Floor(top / K.T);
+                    onCage = true;
+                    break;
+                }
+            }
+            if (Ter.Solid(tx, below) || onCage)
             {
                 int ty = below - 1;
                 while (ty >= 0 && Ter.Solid(tx, ty)) ty--;        // pousa em cima do que ja estiver ali

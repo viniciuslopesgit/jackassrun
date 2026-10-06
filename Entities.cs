@@ -27,7 +27,7 @@ public sealed class Enemy
             : (X - HalfW, Y - Height, X + HalfW, Y);
 }
 
-public enum BulletKind { Bullet, Pellet, Laser, Rocket, Grenade, Dynamite, Slash, EBullet, ERocket, EBomb }
+public enum BulletKind { Bullet, Pellet, Laser, Rocket, Grenade, Dynamite, Slash, EBullet, ERocket, EBomb, Batarang, Web, Arrow }
 
 public sealed class Bullet
 {
@@ -36,6 +36,7 @@ public sealed class Bullet
     public bool FromPlayer, Ghost, Pierce, Dead;
     public float X, Y, VX, VY, Life, W = 3, H = 2, Grav, ExplodeR, T;
     public int Dmg = 1;
+    public int Char = -1;      // heroi que atirou (dano nos blocos vem do HeroConfig); -1 = usa Dmg
     public Bullet Clone() => (Bullet)MemberwiseClone();
 }
 
@@ -107,7 +108,8 @@ public sealed class WorldState
 
 public sealed class Player
 {
-    public int Char, Facing = 1, Specials = 3, Shield, WallDir;
+    public int Char, Facing = 1, Specials = 3, Shield, WallDir, AirJumps;
+    public bool AltHand;      // pistolas duplas: alterna a mao
     public float X, Y, VX, VY;
     public float FireT, InvulnT, AnimT, DashT, MuzzleT, Coyote, Recoil, LandT;
     public bool OnGround, Climbing, Dead;

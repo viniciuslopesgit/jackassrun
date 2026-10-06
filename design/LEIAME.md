@@ -1,5 +1,7 @@
 # Pasta de arte do Jackass Run
 
+> As variaveis de cada heroi (velocidade, dano, tiro, especial...) ficam no arquivo **HeroConfig.cs**, na pasta do projeto.
+
 Tudo aqui e PNG comum: edite no Aseprite, Photoshop, Krita, Piskel, LibreSprite...
 - O jogo le esta pasta ao abrir. Com o jogo aberto, aperte **F5** para recarregar a arte.
 - Apague um arquivo para o jogo gerar de novo a versao original.
@@ -34,7 +36,7 @@ Os prisioneiros nas jaulas usam a folha do heroi correspondente.
 - **jaula.png**: 2 quadros 32x48, base em (16, 47) (bandeira balancando). O prisioneiro e desenhado atras.
 - **projeteis.png**: celulas 32x16, centro (16, 8), apontando para a direita. Linha 0 e 1 = quadros A e B.
   Colunas: 0 bala, 1 chumbo, 2 laser, 3 foguete, 4 foguete inimigo, 5 granada, 6 dinamite,
-  7 bala inimiga (pinte de branco/cinza: o jogo aplica a cor da era), 8 bomba.
+  7 bala inimiga (pinte de branco/cinza: o jogo aplica a cor da era), 8 bomba, 9 batarangue, 10 teia, 11 flecha.
 
 ## tiles/<era>.png
 Folha de 8x5 tiles de **16x16** (o heroi tem ~1 bloco de altura, como no Broforce):

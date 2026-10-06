@@ -425,9 +425,10 @@ public sealed partial class Game
             {
                 BulletKind.Bullet => Art.ProjBullet, BulletKind.Pellet => Art.ProjPellet, BulletKind.Laser => Art.ProjLaser,
                 BulletKind.Rocket => Art.ProjRocket, BulletKind.ERocket => Art.ProjERocket, BulletKind.Grenade => Art.ProjGrenade,
-                BulletKind.Dynamite => Art.ProjDynamite, BulletKind.EBomb => Art.ProjBomb, _ => Art.ProjEBullet,
+                BulletKind.Dynamite => Art.ProjDynamite, BulletKind.EBomb => Art.ProjBomb, BulletKind.Batarang => Art.ProjBatarang,
+                BulletKind.Web => Art.ProjWeb, BulletKind.Arrow => Art.ProjArrow, _ => Art.ProjEBullet,
             };
-            int frame = b.Kind is BulletKind.Grenade ? (int)(b.T * 10) % 2 : (int)(time * 20) % 2;
+            int frame = b.Kind is BulletKind.Grenade ? (int)(b.T * 10) % 2 : (int)(time * (b.Kind == BulletKind.Batarang ? 30 : 20)) % 2;
             var tint = b.Kind == BulletKind.EBullet ? (b.FromPlayer ? Yellow : Eras.ForX(b.X).EBullet) : White;
             Art.Cell(Art.Proj, col, frame, x, y, d, 0, A(tint, a));
         }
@@ -770,7 +771,7 @@ public sealed partial class Game
             "ATIRAR: J / Z           ESPECIAL: K / X",
             "TIME OUT (VOLTAR NO TEMPO): L / C",
             "SEGURE CONTRA A PAREDE PARA ESCALAR",
-            "F: TELA CHEIA    M: MUSICA",
+            "F: TELA CHEIA    M: SOM",
         };
         for (int i = 0; i < lines.Length; i++) TextC(lines[i], K.W / 2, y + i * 12, 10, White);
     }
@@ -786,7 +787,7 @@ public sealed partial class Game
         TextC("TIME FORCE BROS", K.W / 2, 54, 10, White);
         for (int i = 0; i < Chars.All.Length; i++)
         {
-            int x = K.W / 2 - 80 + i * 40;
+            int x = K.W / 2 - (Chars.All.Length - 1) * 30 + i * 60;
             Art.Human(Art.Heroes[i], x, 98, 1, Anim.Of(AState.Run, titleT + i * 0.27f));
         }
         if ((int)(titleT * 2) % 2 == 0) TextC("APERTE ENTER PARA COMECAR", K.W / 2, 108, 10, Yellow);

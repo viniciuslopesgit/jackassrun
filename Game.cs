@@ -52,7 +52,7 @@ public sealed partial class Game
             if (bot != null) raw = BotInput();
             pending.MergePressed(raw);
             if (Raylib.IsKeyPressed(KeyboardKey.F11) || Raylib.IsKeyPressed(KeyboardKey.F)) ToggleFull();
-            if (Raylib.IsKeyPressed(KeyboardKey.M)) sfx.MusicOn = !sfx.MusicOn;
+            if (Raylib.IsKeyPressed(KeyboardKey.M)) sfx.Muted = !sfx.Muted;
             if (Raylib.IsKeyPressed(KeyboardKey.F5)) Art.Load();      // recarrega a arte editada
 
             acc += ft;
@@ -189,7 +189,7 @@ public sealed partial class Game
             if (sy > 2 && !Ter.Solid(tx, sy - 1) && !Ter.Solid(tx, sy - 2))
             { x = tx * K.T + K.T / 2f; y = sy * K.T; break; }
         }
-        P = new Player { Char = ch, X = x, Y = y, InvulnT = 2f, Specials = 3 };
+        P = new Player { Char = ch, X = x, Y = y, InvulnT = 2f, Specials = HeroConfig.Of(ch).EspeciaisIniciais };
         rec = new Ghost { Char = ch, StartFrame = S.Frame + 1 };
         sfx.Play("spawn");
         // feixe de teletransporte estilo STF
