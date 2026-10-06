@@ -31,6 +31,7 @@ public sealed partial class Game
 
     public Game()
     {
+        Art.Load();
         sfx = new Sfx();
         best = LoadBest();
         StartWorld();
@@ -52,6 +53,7 @@ public sealed partial class Game
             pending.MergePressed(raw);
             if (Raylib.IsKeyPressed(KeyboardKey.F11) || Raylib.IsKeyPressed(KeyboardKey.F)) ToggleFull();
             if (Raylib.IsKeyPressed(KeyboardKey.M)) sfx.MusicOn = !sfx.MusicOn;
+            if (Raylib.IsKeyPressed(KeyboardKey.F5)) Art.Load();      // recarrega a arte editada
 
             acc += ft;
             int steps = 0;
@@ -214,7 +216,7 @@ public sealed partial class Game
         if (boom) Gibs(P.X, P.Y - 10, lk.Skin, lk.Shirt, lk.Pants, BloodRed, 40);
         else
         {
-            AddCorpse(P.X, P.Y - 10, lk, P.Facing, -P.Facing, false, null);
+            AddCorpse(P.X, P.Y + Gfx.Pivot, Art.Heroes[P.Char], P.Facing, -P.Facing, false, null);
             BloodSpray(P.X, P.Y - 10, -P.Facing, 22, BloodRed, 1.3f);
         }
         if (rec != null) { rec.Died = true; rec.KillerId = killerId; ghosts.Add(rec); rec = null; }

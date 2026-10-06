@@ -62,12 +62,12 @@ public sealed partial class Game
         AddPart(PKind.Flash, x, y, 0, 0, 0.06f, 6, White);
     }
 
-    void AddCorpse(float x, float y, Look look, int facing, float dir, bool flyer, Era? era)
+    void AddCorpse(float x, float y, Sheet sprite, int facing, float dir, bool flyer, Era? era)
     {
         if (dir == 0) dir = -facing;
         corpses.Add(new Corpse
         {
-            X = x, Y = y, Look = look, Facing = facing, IsFlyer = flyer, Era = era,
+            X = x, Y = y, Sprite = sprite, Facing = facing, IsFlyer = flyer, Era = era,
             VX = dir * R(90, 160), VY = -R(160, 250), Spin = dir * R(500, 900) * facing,
         });
     }
@@ -106,12 +106,12 @@ public sealed partial class Game
         if (machine)
         {
             Explode(e.X, cy, 16, true, K.PLAYER_ID);
-            if (e.Kind == EnemyKind.Flyer) AddCorpse(e.X, cy, default, e.Facing, e.HitDir, true, era);
+            if (e.Kind == EnemyKind.Flyer) AddCorpse(e.X, cy, Art.Flyers[Eras.IndexForX(e.X)], e.Facing, e.HitDir, true, era);
         }
         else if (e.Kind == EnemyKind.Flyer)
         {
             BloodSpray(e.X, cy, e.HitDir, 14, blood, 1.1f);
-            AddCorpse(e.X, cy, default, e.Facing, e.HitDir, true, era);
+            AddCorpse(e.X, cy, Art.Flyers[Eras.IndexForX(e.X)], e.Facing, e.HitDir, true, era);
         }
         else
         {
@@ -119,7 +119,7 @@ public sealed partial class Game
             if (e.LastBoom) Gibs(e.X, cy, look.Skin, look.Shirt, look.Pants, blood, e.Kind == EnemyKind.Brute ? 45 : 30);
             else
             {
-                AddCorpse(e.X, e.Y - 10, look, e.Facing, e.HitDir, false, era);
+                AddCorpse(e.X, e.Y + Gfx.Pivot, Art.Grunts[Eras.IndexForX(e.X), (int)e.Kind], e.Facing, e.HitDir, false, era);
                 BloodSpray(e.X, cy, e.HitDir, e.Kind == EnemyKind.Brute ? 24 : 16, blood, 1.25f);
             }
             if (era.Style == BgStyle.Future)

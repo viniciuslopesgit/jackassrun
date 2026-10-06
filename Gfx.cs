@@ -41,12 +41,8 @@ public static partial class Gfx
 
     public static void Rect(int x, int y, int w, int h, Color c) => Raylib.DrawRectangle(x, y, w, h, c);
 
-    /// <summary>Retangulo com contorno escuro.</summary>
-    public static void Box(int x, int y, int w, int h, Color c)
-    {
-        Raylib.DrawRectangle(x - 1, y - 1, w + 2, h + 2, Ink);
-        Raylib.DrawRectangle(x, y, w, h, c);
-    }
+    /// <summary>Retangulo preenchido (sem contorno: o visual do jogo usa so cor e sombreamento).</summary>
+    public static void Box(int x, int y, int w, int h, Color c) => Raylib.DrawRectangle(x, y, w, h, c);
 
     /// <summary>Circulo feito de linhas horizontais (fica pixelado e nitido em qualquer escala).</summary>
     public static void PixelCircle(int cx, int cy, int r, Color c)
@@ -61,7 +57,7 @@ public static partial class Gfx
 
     /// <summary>Desenha as partes acumuladas: primeiro todos os contornos, depois os preenchimentos.
     /// rot gira em passos de 90 graus em torno do centro do corpo.</summary>
-    static void Flush(int fx, int fy, int facing, float alpha, Color? over, int rot = 0, bool outline = true)
+    static void Flush(int fx, int fy, int facing, float alpha, Color? over, int rot = 0, bool outline = false)
     {
         rot &= 3;
         const int px = 0, py = Pivot;
@@ -156,7 +152,7 @@ public static partial class Gfx
         var red = blink ? White : Hex(0xd8342a);
         int w = (int)wobble;
         P(-4 + w, -10, 8, 10, red); P(-4 + w, -8, 8, 1, Yellow, true); P(-4 + w, -3, 8, 1, Yellow, true);
-        P(-2 + w, -7, 3, 3, Ink, true); P(-3 + w, -10, 2, 10, Mul(red, 1.25f), true);
+        P(-2 + w, -7, 3, 3, Mul(red, 0.5f), true); P(-3 + w, -10, 2, 10, Mul(red, 1.25f), true);
         P(2 + w, -10, 2, 10, Mul(red, 0.75f), true);
         Flush(cx, fy, 1, 1, null);
     }
@@ -181,8 +177,9 @@ public static partial class Gfx
     public static void Glorb(int cx, int cy, float t)
     {
         float p = 0.5f + 0.5f * MathF.Sin(t * 6);
-        PixelCircle(cx, cy, 4, Ink);
-        PixelCircle(cx, cy, 3, Col.Lerp(Cyan, Magenta, p));
+        var gc = Col.Lerp(Cyan, Magenta, p);
+        PixelCircle(cx, cy, 4, Mul(gc, 0.6f));
+        PixelCircle(cx, cy, 3, gc);
         Rect(cx - 1, cy - 2, 2, 1, White);
         if (((int)(t * 5) & 3) == 0) { Rect(cx + 4, cy - 4, 1, 1, White); Rect(cx + 3, cy - 5, 3, 1, A(White, 0.5f)); }
     }
@@ -203,10 +200,9 @@ public static partial class Gfx
 
     public static void Text(string s, int x, int y, int size, Color c, Color? outline = null)
     {
+        // sombra suave em vez de contorno
         var o = outline ?? Ink;
-        Raylib.DrawText(s, x - 1, y, size, o); Raylib.DrawText(s, x + 1, y, size, o);
-        Raylib.DrawText(s, x, y - 1, size, o); Raylib.DrawText(s, x, y + 1, size, o);
-        Raylib.DrawText(s, x + 1, y + 1, size, o);
+        Raylib.DrawText(s, x + 1, y + 1, size, A(o, 0.55f));
         Raylib.DrawText(s, x, y, size, c);
     }
 

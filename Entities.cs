@@ -191,6 +191,7 @@ public sealed class Corpse
     public float X, Y, VX, VY, Angle, Spin, Life = 2.4f, T;
     public int Facing, Bounces;
     public Look Look;
+    public Sheet? Sprite;
     public bool IsFlyer, Rest;
     public Era? Era;
 }

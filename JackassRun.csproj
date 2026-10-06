@@ -14,4 +14,9 @@
     <PackageReference Include="Raylib-cs" Version="8.1.0" />
   </ItemGroup>
 
+  <!-- Arte editavel: copiada para junto do executavel ao compilar/publicar -->
+  <ItemGroup>
+    <None Include="design\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

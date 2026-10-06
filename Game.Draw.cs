@@ -141,89 +141,40 @@ public sealed partial class Game
         bool upE = !Ter.Solid(tx, ty - 1), dnE = !Ter.Solid(tx, ty + 1) && ty < K.ROWS - 1;
         bool lE = !Ter.Solid(tx - 1, ty), rE = !Ter.Solid(tx + 1, ty);
         int depth = upE ? 0 : !Ter.Solid(tx, ty - 2) ? 1 : 2;
-        TileArt(tx * K.T - cam, ty * K.T + shY, tx, ty, type, dmg, e, upE, dnE, lE, rE, depth);
+        TileAt(tx * K.T - cam, ty * K.T + shY, tx, ty, type, dmg, Eras.IndexForCol(tx), upE, dnE, lE, rE, depth, true);
     }
 
-    void TileArt(int x, int y, int tx, int ty, int type, int dmg, Era e, bool upE, bool dnE, bool lE, bool rE, int depth)
+    /// <summary>Desenha um tile a partir de design/tiles/&lt;era&gt;.png (ver LEIAME na pasta design).</summary>
+    void TileAt(int x, int y, int tx, int ty, int type, int dmg, int era, bool upE, bool dnE, bool lE, bool rE, int depth, bool decor)
     {
+        var tex = Art.Tiles[era];
         uint hsh = Hash.H(tx, ty);
-        switch (type)
+        (int col, int row) = type switch
         {
-            case Terrain.DIRT:
-            {
-                var c = depth == 0 ? e.Dirt : depth == 1 ? Col.Lerp(e.Dirt, e.DirtDark, 0.45f) : e.DirtDark;
-                Rect(x, y, 8, 8, c);
-                var dark = Col.Mul(c, 0.78f);
-                Rect(x + (int)(hsh % 6), y + 2 + (int)(hsh >> 4) % 5, 2, 1, dark);
-                Rect(x + (int)(hsh >> 8) % 7, y + (int)(hsh >> 12) % 7, 1, 1, Col.Mul(c, 1.15f));
-                if (depth == 2 && (hsh & 7) == 0) Rect(x + 2, y + 3, 3, 2, Col.Mul(c, 0.85f)); // pedrinhas
-                if (upE)
-                {
-                    var top = e.Style == BgStyle.Future ? Col.Lerp(e.Top, White, 0.25f + 0.25f * MathF.Sin(time * 4 + tx * 0.4f)) : e.Top;
-                    Rect(x, y, 8, 3, top);
-                    Rect(x, y, 8, 1, e.TopLight);
-                    Rect(x + (int)(hsh % 7), y + 3, 1, 1 + (int)((hsh >> 3) % 2), top);
-                    Rect(x + (int)((hsh >> 5) % 7), y + 3, 1, 1, top);
-                    if (e.Style != BgStyle.Future)
-                    {
-                        // tufos de grama balancando ao vento
-                        int sway = MathF.Sin(time * 2.6f + tx * 0.9f) > 0.25f ? 1 : 0;
-                        if ((hsh & 3) == 0) { Rect(x + 2 + sway, y - 3, 1, 2, e.TopLight); Rect(x + 2, y - 1, 1, 1, e.Top); }
-                        if ((hsh & 12) == 4) { Rect(x + 5 + sway, y - 2, 1, 1, e.TopLight); Rect(x + 5, y - 1, 2, 1, e.Top); }
-                        if (hsh % 13 == 0)
-                        {
-                            var flower = e.Style switch { BgStyle.Jungle => (hsh & 16) != 0 ? Red : Yellow, BgStyle.Dino => Orange, _ => Magenta };
-                            Rect(x + 4, y - 3, 1, 3, e.Top);
-                            Rect(x + 3 + sway, y - 5, 3, 2, flower);
-                            Rect(x + 4 + sway, y - 5, 1, 1, Yellow);
-                        }
-                    }
-                }
-                break;
-            }
-            case Terrain.BRICK:
-            {
-                Rect(x, y, 8, 8, e.Brick);
-                Rect(x, y + 3, 8, 1, e.BrickDark);
-                Rect(x, y + 7, 8, 1, e.BrickDark);
-                Rect(x + (ty % 2 == 0 ? 3 : 7), y, 1, 3, e.BrickDark);
-                Rect(x + (ty % 2 == 0 ? 6 : 2), y + 4, 1, 3, e.BrickDark);
-                Rect(x, y, 8, 1, Col.Mul(e.Brick, 1.2f));
-                Rect(x, y + 4, 8, 1, Col.Mul(e.Brick, 1.1f));
-                break;
-            }
-            case Terrain.STEEL:
-            {
-                Rect(x, y, 8, 8, e.SteelDark);
-                Rect(x + 1, y + 1, 6, 6, e.Steel);
-                Rect(x + 1, y + 1, 6, 1, Col.Mul(e.Steel, 1.25f));
-                Rect(x + 2, y + 2, 1, 1, Col.Mul(e.Steel, 1.4f));
-                Rect(x + 1, y + 1, 1, 1, e.SteelDark); Rect(x + 6, y + 1, 1, 1, e.SteelDark);
-                Rect(x + 1, y + 6, 1, 1, e.SteelDark); Rect(x + 6, y + 6, 1, 1, e.SteelDark);
-                break;
-            }
-            default:
-            {
-                var wood = Hex(0xb07a3a);
-                Rect(x, y, 8, 8, Hex(0x6a4420));
-                Rect(x + 1, y + 1, 6, 6, wood);
-                for (int i = 1; i < 7; i++) Rect(x + i, y + i, 1, 1, Hex(0x6a4420));
-                Rect(x + 1, y + 1, 6, 1, Hex(0xd09a5a));
-                break;
-            }
-        }
-        if (upE && type != Terrain.DIRT) Rect(x, y, 8, 1, Ink);
-        if (dnE) Rect(x, y + 7, 8, 1, Ink);
-        if (lE) Rect(x, y, 1, 8, Ink);
-        if (rE) Rect(x + 7, y, 1, 8, Ink);
-        if (upE && type == Terrain.DIRT) Rect(x, y - 1, 8, 1, Ink);
-        if (dmg > 0)
+            Terrain.DIRT => ((int)(hsh % 4), depth),
+            Terrain.BRICK => (ty & 1, 3),
+            Terrain.STEEL => (2, 3),
+            _ => (3, 3),
+        };
+        Raylib.DrawTextureRec(tex, new Rectangle(col * 8, row * 8, 8, 8), new Vector2(x, y), Color.White);
+        if (dmg > 0) Raylib.DrawTextureRec(tex, new Rectangle((3 + Math.Min(dmg, 3)) * 8, 24, 8, 8), new Vector2(x, y), Color.White);
+        // sem contornos: so uma leve sombra embaixo de blocos suspensos
+        if (dnE) Rect(x, y + 7, 8, 1, A(Ink, 0.18f));
+        if (upE && type == Terrain.DIRT)
         {
-            Rect(x + 3, y + 2, 1, 3, Ink);
-            if (dmg > 1) { Rect(x + 4, y + 4, 2, 1, Ink); Rect(x + 1, y + 5, 2, 1, Ink); }
-            if (dmg > 2) { Rect(x + 5, y + 1, 1, 2, Ink); Rect(x + 2, y + 1, 1, 1, Ink); }
+            if (decor)
+            {
+                // enfeites (tufos e flores) balancando ao vento: 2 quadros cada
+                int sway = MathF.Sin(time * 2.6f + tx * 0.9f) > 0.25f ? 1 : 0;
+                if ((hsh & 3) == 0) Decor(tex, sway, x, y);
+                if ((hsh & 12) == 4) Decor(tex, 2 + sway, x, y);
+                if (hsh % 13 == 0) Decor(tex, 4 + sway, x, y);
+            }
         }
     }
+
+    static void Decor(Texture2D tex, int col, int x, int y) =>
+        Raylib.DrawTextureRec(tex, new Rectangle(col * 8, 32, 8, 8), new Vector2(x, y - 8), Color.White);
 
     void DrawDecals()
     {
@@ -241,7 +192,7 @@ public sealed partial class Game
         {
             if (f.Dead) continue;
             int tx = (int)MathF.Floor((f.X + 4) / K.T);
-            TileArt(SX(f.X), SY(f.Y), tx, 3, Terrain.TypeOf(f.Tile), Terrain.DmgOf(f.Tile), Eras.ForCol(tx), true, true, true, true, 1);
+            TileAt(SX(f.X), SY(f.Y), tx, 3, Terrain.TypeOf(f.Tile), Terrain.DmgOf(f.Tile), Eras.IndexForCol(tx), true, true, true, true, 1, false);
         }
     }
 
@@ -258,25 +209,22 @@ public sealed partial class Game
             {
                 case PropKind.Barrel:
                     bool lit = p.Fuse >= 0;
-                    Barrel(x, y, lit && (int)(time * 30) % 2 == 0, lit ? MathF.Sin(time * 60) : 0);
+                    Art.Cell(Art.Barrel, lit && (int)(time * 30) % 2 == 0 ? 1 : 0, 0, x + (lit ? (int)MathF.Round(MathF.Sin(time * 60)) : 0), y);
                     break;
-                case PropKind.Cage: Cage(x, y, p.T, p.Char); break;
-                case PropKind.Glorb: Glorb(x, y + (int)MathF.Round(MathF.Sin(p.T * 3) * 2), p.T); break;
+                case PropKind.Cage:
+                    var hero = Art.Heroes[p.Char % Art.Heroes.Length];
+                    Art.Human(hero, x, y - 2, 1, Anim.Of(MathF.Sin(p.T * 2.2f) > 0 ? AState.Cheer : AState.Idle, p.T));
+                    Art.Cell(Art.Cage, (int)(p.T * 8) % 2, 0, x, y);
+                    if (MathF.Sin(p.T * 2.3f) > 0.4f) TextC("SOCORRO!", x, y - 48 - (int)(MathF.Abs(MathF.Sin(p.T * 8)) * 2), 10, White, Ink);
+                    break;
+                case PropKind.Glorb:
+                    Art.Cell(Art.Glorb, (int)(p.T * 5) % 4, 0, x, y + (int)MathF.Round(MathF.Sin(p.T * 3) * 2));
+                    break;
             }
         }
     }
 
-    Look EnemyLook(Era e, EnemyKind k)
-    {
-        var l = new Look
-        {
-            Skin = e.ESkin, Hair = e.EHat, Shirt = e.EShirt, Pants = e.EPants, Boots = Col.Mul(e.EPants, 0.6f),
-            Gun = e.EGun, Accent = e.EAccent, Hat = e.EHatStyle, GunLen = 7, GunH = 2, Wpn = 1,
-        };
-        if (k == EnemyKind.Rocketeer) { l.Wpn = 4; l.GunLen = 9; l.GunH = 3; l.Gun = Col.Mul(e.EAccent, 0.7f); l.Shirt = Col.Mul(e.EShirt, 0.8f); }
-        if (k == EnemyKind.Brute) { l.Wpn = 6; l.Bulk = 1; l.GunLen = 9; l.GunH = 3; l.Shirt = Col.Lerp(e.EShirt, Red, 0.35f); }
-        return l;
-    }
+    static Look EnemyLook(Era e, EnemyKind k) => DesignExport.EnemyLook(e, k);
 
     void DrawEnemies()
     {
@@ -286,11 +234,18 @@ public sealed partial class Game
             int x = SX(e.X), y = SY(e.Y);
             if (x < -30 || x > K.W + 30) continue;
             var era = Eras.ForX(e.X);
-            Color? over = e.HurtT > 0.05f ? White : S.FreezeT > 0 ? Hex(0xa8f0ff) : null;
+            int ei = Eras.IndexForX(e.X);
+            bool hurt = e.HurtT > 0.05f;
+            Color? over = hurt ? White : null;
+            Color? tint = S.FreezeT > 0 ? Hex(0xa8f0ff) : null;
             switch (e.Kind)
             {
-                case EnemyKind.Flyer: Flyer(x, y, e.Facing, era, e.AnimT, over); break;
-                case EnemyKind.Turret: Turret(x, y, e.Facing, era, e.AnimT, e.MuzzleT > 0 ? 2 : 0, over); break;
+                case EnemyKind.Flyer:
+                    Art.Cell(Art.Flyers[ei], (int)(e.AnimT * 14) & 3, 0, x, y, e.Facing, 0, over ?? tint, hurt);
+                    break;
+                case EnemyKind.Turret:
+                    Art.Cell(Art.Turrets[ei], ((int)(e.AnimT * 4) % 2) + (e.MuzzleT > 0 ? 2 : 0), 0, x, y, e.Facing, 0, over ?? tint, hurt);
+                    break;
                 default:
                 {
                     Anim an;
@@ -303,7 +258,7 @@ public sealed partial class Game
                     }
                     else an = Anim.FromPhysics(e.OnGround, false, e.VX, e.VY, e.AnimT, e.LandT);
                     an.Recoil = e.MuzzleT > 0 ? 1 : 0;
-                    Humanoid(x, y - hop, e.Facing, EnemyLook(era, e.Kind), an, 1, over);
+                    Art.Human(Art.Grunts[ei, (int)e.Kind], x, y - hop, e.Facing, an, 1, over, tint);
                     break;
                 }
             }
@@ -317,14 +272,14 @@ public sealed partial class Game
                 float k = 1 - e.AlertT / 0.5f;
                 int by = y - (e.Kind == EnemyKind.Brute ? 38 : 34) - (int)(MathF.Sin(k * MathF.PI) * 6);
                 int grow = k < 0.2f ? 1 : 0;
-                Box(x - 2 - grow, by - grow, 4 + grow * 2, 8 + grow, Red);
+                Rect(x - 2 - grow, by - grow, 4 + grow * 2, 8 + grow, Red);
                 Rect(x - 1, by + 1, 2, 4, White); Rect(x - 1, by + 6, 2, 1, White);
             }
             if (e.Kind is EnemyKind.Brute or EnemyKind.Turret && e.Hp > 0)
             {
                 int max = e.Kind == EnemyKind.Brute ? 8 : 6;
                 int top = e.Kind == EnemyKind.Brute ? y - 36 : y - 15;
-                Rect(x - 7, top, 14, 2, Ink);
+                Rect(x - 7, top, 14, 2, A(Ink, 0.45f));
                 Rect(x - 7, top, 14 * e.Hp / max, 2, Red);
             }
         }
@@ -334,15 +289,16 @@ public sealed partial class Game
     {
         foreach (var c in corpses)
         {
+            if (c.Sprite == null) continue;
             float a = c.Life < 0.6f ? ((int)(c.Life * 20) % 2 == 0 ? 0.3f : 1f) : 1f;
             int rot = (((int)MathF.Round(c.Angle / 90f)) % 4 + 4) % 4;
             int x = SX(c.X), y = SY(c.Y);
-            if (c.IsFlyer && c.Era != null) Flyer(x, y, c.Facing, c.Era, 0, null, a, rot);
+            if (c.IsFlyer) Art.Cell(c.Sprite, 0, 0, x, y, c.Facing, rot, A(White, a));
             else
             {
                 var an = Anim.Of(c.Rest ? AState.Hurt : AState.Tumble, c.T);
                 an.Rot = rot;
-                Humanoid(x, y - Pivot, c.Facing, c.Look, an, a);
+                Art.Human(c.Sprite, x, y - Pivot, c.Facing, an, a);
             }
         }
     }
@@ -350,10 +306,7 @@ public sealed partial class Game
     void DrawTrails()
     {
         foreach (var t in trails)
-        {
-            var look = Chars.All[t.Char].Look;
-            Humanoid(SX(t.X), SY(t.Y), t.Facing, look, t.Anim, t.Life / 0.22f * 0.55f, look.Accent);
-        }
+            Art.Human(Art.Heroes[t.Char], SX(t.X), SY(t.Y), t.Facing, t.Anim, t.Life / 0.22f * 0.55f, Chars.All[t.Char].Look.Accent);
     }
 
     void DrawGhosts()
@@ -372,11 +325,11 @@ public sealed partial class Game
                 if (pi < 0) break;
                 var pf = g.Frames[pi];
                 var pa = Anim.FromPhysics(pf.OnGround, pf.Climbing, pf.VX, pf.VY, (S.Frame - k * 3) * K.DT);
-                Humanoid(SX(pf.X), SY(pf.Y), pf.Facing, look, pa, 0.16f - k * 0.04f, Cyan);
+                Art.Human(Art.Heroes[g.Char], SX(pf.X), SY(pf.Y), pf.Facing, pa, 0.16f - k * 0.04f, Cyan);
             }
             var an = Anim.FromPhysics(f.OnGround, f.Climbing, f.VX, f.VY, S.Frame * K.DT);
             an.Recoil = f.Fire ? 2 : 0;
-            Humanoid(x, y, f.Facing, look, an, a);
+            Art.Human(Art.Heroes[g.Char], x, y, f.Facing, an, a);
             if (f.Fire && g.Char != 4) { var gg = Sprites.GunOf(look); MuzzleStar(x + f.Facing * gg.MuzzleX, y + gg.MuzzleY, f.Facing, 3, S.Frame, A(Yellow, 0.7f)); }
             int left = g.Frames.Count - idx;
             if (g.Died && left < 120 && !g.Resolved && (int)(time * 8) % 2 == 0)
@@ -393,7 +346,7 @@ public sealed partial class Game
         int x = SX(p.X), y = SY(p.Y);
         var an = Anim.FromPhysics(p.OnGround, p.Climbing, p.VX, p.VY, p.AnimT, p.LandT, p.DashT > 0);
         an.Recoil = p.Recoil;
-        Humanoid(x, y, p.Facing, ch.Look, an);
+        Art.Human(Art.Heroes[p.Char], x, y, p.Facing, an);
         if (p.MuzzleT > 0 && p.Char != 4)
         {
             var gun = Sprites.GunOf(ch.Look);
@@ -417,67 +370,26 @@ public sealed partial class Game
             int x = SX(b.X), y = SY(b.Y);
             int d = b.VX >= 0 ? 1 : -1;
             float a = b.Ghost ? 0.6f : 1f;
-            switch (b.Kind)
+            if (b.Kind == BulletKind.Slash)
             {
-                case BulletKind.Bullet:
-                    Rect(x - 3 - d * 5, y, 5, 1, A(Orange, a * 0.5f));
-                    Rect(x - 3, y - 1, 6, 2, A(Yellow, a));
-                    Rect(x + (d > 0 ? 0 : -3), y - 1, 3, 1, A(White, a));
-                    break;
-                case BulletKind.Pellet:
-                    Rect(x - 1 - d * 2, y, 2, 1, A(Orange, a * 0.6f));
-                    Rect(x - 1, y - 1, 2, 2, A(Yellow, a));
-                    break;
-                case BulletKind.Laser:
-                    Rect(x - 12, y - 2, 24, 4, A(Cyan, a * 0.55f));
-                    Rect(x - 11, y - 1, 22, 2, A(White, a));
-                    break;
-                case BulletKind.Rocket:
-                case BulletKind.ERocket:
+                float t = 1 - b.Life / (b.W > 40 ? 0.14f : 0.1f);
+                int w = (int)(b.W / 2);
+                for (int i = -3; i <= 3; i++)
                 {
-                    var body = b.Kind == BulletKind.Rocket ? Hex(0x55702f) : Hex(0x8a8a9a);
-                    Box(x - 3, y - 1, 6, 3, A(body, a));
-                    Rect(x + d * 3 - (d < 0 ? 1 : 0), y - 1, 1, 3, Red);
-                    int fl = (int)(time * 30) % 3;
-                    Rect(x - d * (5 + fl) - (d > 0 ? 0 : 1), y, 2 + fl, 1, Yellow);
-                    PixelCircle(x - d * 5, y, 1 + (fl & 1), Orange);
-                    break;
+                    int len = w - Math.Abs(i) * Math.Abs(i);
+                    Rect(x - len, y + i * 3, len * 2, 1, A(i == 0 ? White : Hex(0xdfe8f0), (1 - t) * a));
                 }
-                case BulletKind.Grenade:
-                    PixelCircle(x, y, 3, Ink); PixelCircle(x, y, 2, Hex(0x4a6a2a));
-                    Rect(x - 1, y - 2, 1, 1, Hex(0x8aaa5a));
-                    if ((int)(b.T * 10) % 2 == 0) Rect(x, y - 4, 1, 1, Red);
-                    break;
-                case BulletKind.Dynamite:
-                    Box(x - 1, y - 3, 3, 6, Red); Rect(x, y - 5, 1, 2, Hex(0xe8e0c0));
-                    break;
-                case BulletKind.Slash:
-                {
-                    float t = 1 - b.Life / (b.W > 40 ? 0.14f : 0.1f);
-                    int w = (int)(b.W / 2);
-                    for (int i = -3; i <= 3; i++)
-                    {
-                        int yy = y + i * 3;
-                        int len = w - Math.Abs(i) * Math.Abs(i);
-                        Rect(x - len, yy, len * 2, 1, A(i == 0 ? White : Hex(0xdfe8f0), (1 - t) * a));
-                    }
-                    break;
-                }
-                case BulletKind.EBullet:
-                {
-                    var c = b.FromPlayer ? Yellow : Eras.ForX(b.X).EBullet;
-                    int pulse = (int)(b.T * 16) % 2;
-                    PixelCircle(x, y, 3, Ink);
-                    PixelCircle(x, y, 2, c);
-                    Rect(x - 1, y - 1, 1 + pulse, 1, White);
-                    break;
-                }
-                case BulletKind.EBomb:
-                    PixelCircle(x, y, 4, Ink); PixelCircle(x, y, 3, Hex(0x3a3a3a));
-                    Rect(x - 1, y - 2, 1, 1, Hex(0x7a7a7a));
-                    Rect(x, y - 6, 1, 2, (int)(time * 20) % 2 == 0 ? Yellow : Orange);
-                    break;
+                continue;
             }
+            int col = b.Kind switch
+            {
+                BulletKind.Bullet => Art.ProjBullet, BulletKind.Pellet => Art.ProjPellet, BulletKind.Laser => Art.ProjLaser,
+                BulletKind.Rocket => Art.ProjRocket, BulletKind.ERocket => Art.ProjERocket, BulletKind.Grenade => Art.ProjGrenade,
+                BulletKind.Dynamite => Art.ProjDynamite, BulletKind.EBomb => Art.ProjBomb, _ => Art.ProjEBullet,
+            };
+            int frame = b.Kind is BulletKind.Grenade ? (int)(b.T * 10) % 2 : (int)(time * 20) % 2;
+            var tint = b.Kind == BulletKind.EBullet ? (b.FromPlayer ? Yellow : Eras.ForX(b.X).EBullet) : White;
+            Art.Cell(Art.Proj, col, frame, x, y, d, 0, A(tint, a));
         }
     }
 
@@ -505,7 +417,7 @@ public sealed partial class Game
                 Color c = lt < 0.1f ? White : lt < 0.24f ? Yellow : lt < 0.4f ? Orange : lt < 0.55f ? Hex(0xd8401e)
                     : Col.Lerp(Hex(0x6a4a46), Hex(0x3a3240), (lt - 0.55f) / 0.45f);
                 float alpha = MathF.Min(1, lt > 0.7f ? shrink / 0.55f : 1);
-                if (pass == 0) PixelCircle(px, py, r + 1, A(Ink, alpha));
+                if (pass == 0) continue;
                 else
                 {
                     PixelCircle(px, py, r, A(c, alpha));
@@ -566,7 +478,6 @@ public sealed partial class Game
                 {
                     int s = (int)p.Size;
                     float a = t < 0.2f ? t / 0.2f : 1;
-                    Rect(x - 1, y - 1, s + 2, s + 2, A(Ink, a));
                     Rect(x, y, s, s, A(p.C, a));
                     Rect(x, y + s - 1, s, 1, A(p.C2, a));
                     break;
@@ -576,7 +487,6 @@ public sealed partial class Game
                 {
                     int s = (int)MathF.Max(1, p.Size);
                     float a = t < 0.25f ? t / 0.25f : 1;
-                    if (s > 1) Rect(x - 1, y - 1, s + 2, s + 2, A(Ink, a));
                     Rect(x, y, s, s, A(p.C, a));
                     if (s > 1) Rect(x, y, s, 1, A(Col.Mul(p.C, 1.3f), a));
                     if (p.Kind == PKind.BurnDebris) Rect(x + (int)(time * 30) % 2, y - 1, 1, 1, Yellow);
@@ -669,11 +579,10 @@ public sealed partial class Game
 
     void DrawBackground()
     {
-        var e = Eras.ForX(S.CamX + K.W * 0.5f);
-        int seedI = (int)(seed & 0xffff);
-
+        int ei = Eras.IndexForX(S.CamX + K.W * 0.5f);
+        var e = Eras.All[ei];
         Raylib.BeginMode2D(ScreenCam(0));
-        Raylib.DrawRectangleGradientV(0, 0, K.W, K.H, e.SkyTop, e.SkyBot);
+        Raylib.DrawTexture(Art.Sky[ei], 0, 0, Color.White);
         if (e.Style is BgStyle.Medieval or BgStyle.Future)
             for (int i = 0; i < 50; i++)
             {
@@ -682,64 +591,12 @@ public sealed partial class Game
                 bool tw = Hash.F(i, 5) > 0.7f && MathF.Sin(time * 3 + i) > 0.5f;
                 Raylib.DrawRectangleRec(new Rectangle(MathF.Floor(x), y, 1, 1), A(White, tw ? 1f : 0.55f));
             }
-        int sunX = 230, sunY = e.Style == BgStyle.Future ? 70 : 40;
-        int sr = e.Style == BgStyle.Future ? 34 : 16;
-        PixelCircle(sunX, sunY, sr + 8, A(e.Sun, 0.12f));
-        PixelCircle(sunX, sunY, sr + 4, A(e.Sun, 0.2f));
-        PixelCircle(sunX, sunY, sr, e.Sun);
-        if (e.Style == BgStyle.Future)
-            for (int i = 0; i < 6; i++) Rect(sunX - sr - 1, sunY + 4 + i * 5 + (int)(time * 4) % 5, sr * 2 + 3, 1 + i / 2, e.SkyBot);
-        if (e.Style == BgStyle.Medieval) PixelCircle(sunX + 5, sunY - 3, sr - 2, e.SkyTop);
-        Raylib.EndMode2D();
-
-        // camada distante
-        float far = S.CamX * 0.12f;
-        int farI = (int)MathF.Floor(far);
-        Raylib.BeginMode2D(ScreenCam(far - farI));
-        for (int x = 0; x <= K.W; x++)
-        {
-            float wx = x + farI;
-            int h = e.Style switch
-            {
-                BgStyle.Dino => Volcano(wx),
-                BgStyle.Future => Skyline(wx, 22, 60, 50, seedI + 1),
-                _ => (int)(40 + Hash.Fbm(wx / 70f, seedI + 1) * 60),
-            };
-            Rect(x, K.H - h, 1, h, e.Far);
-            Rect(x, K.H - h, 1, 1, Col.Lerp(e.Far, e.SkyBot, 0.35f));
-        }
-        if (e.Style == BgStyle.Future) Windows(farI, 22, 60, 50, seedI + 1, A(e.Sun, 0.55f));
-        if (e.Style == BgStyle.Dino) DrawLavaGlow(farI);
-        Raylib.EndMode2D();
-
-        // nevoa entre camadas
-        Raylib.BeginMode2D(ScreenCam(0));
+        // camadas de parallax (posicao em float = rolagem suave sub-pixel)
+        BgLayer(Art.Far[ei], S.CamX * 0.12f);
         Raylib.DrawRectangleGradientV(0, K.H - 90, K.W + 1, 90, A(e.SkyBot, 0f), A(e.SkyBot, 0.35f));
-        Raylib.EndMode2D();
+        BgLayer(Art.Mid[ei], S.CamX * 0.35f);
 
-        // camada do meio
-        float mid = S.CamX * 0.35f;
-        int midI = (int)MathF.Floor(mid);
-        Raylib.BeginMode2D(ScreenCam(mid - midI));
-        for (int x = 0; x <= K.W; x++)
-        {
-            float wx = x + midI;
-            int h = e.Style switch
-            {
-                BgStyle.Jungle => (int)(30 + Hash.Fbm(wx / 30f, seedI + 2) * 30 + MathF.Abs(MathF.Sin(wx / 9f)) * 6),
-                BgStyle.Dino => (int)(26 + Hash.Fbm(wx / 26f, seedI + 3) * 22 + (((int)wx / 3) % 5 == 0 ? 4 : 0)),
-                BgStyle.Medieval => Castle(wx, seedI + 4),
-                _ => Skyline(wx, 30, 40, 40, seedI + 5),
-            };
-            Rect(x, K.H - h, 1, h, e.Mid);
-            Rect(x, K.H - h, 1, 1, Col.Lerp(e.Mid, e.SkyBot, 0.3f));
-        }
-        if (e.Style == BgStyle.Future) Windows(midI, 30, 40, 40, seedI + 5, A(Cyan, 0.7f));
-        if (e.Style == BgStyle.Medieval) Windows(midI, 46, 0, 0, seedI + 4, A(Yellow, 0.85f), castle: true);
-        Raylib.EndMode2D();
-
-        // particulas de ambiente (folhas, cinzas, vagalumes, chuva neon) com posicao suave
-        Raylib.BeginMode2D(ScreenCam(0));
+        // particulas de ambiente (folhas, cinzas, vagalumes, chuva neon)
         for (int i = 0; i < 30; i++)
         {
             float speed = 10 + Hash.F(i, 9) * 20;
@@ -766,73 +623,12 @@ public sealed partial class Game
         Raylib.EndMode2D();
     }
 
-    static int Volcano(float wx)
+    static void BgLayer(Texture2D t, float scroll)
     {
-        float local = ((wx % 180) + 180) % 180;
-        int h = (int)MathF.Max(30, 100 - MathF.Abs(local - 90) * 1.1f);
-        if (h > 92) h = 92;
-        return h + (int)(Hash.Noise(wx / 10f, 11) * 4);
-    }
-
-    static int Skyline(float wx, int width, int min, int amp, int seedI)
-    {
-        int b = (int)MathF.Floor(wx / width);
-        float local = wx - b * width;
-        if (local < 3) return min / 2;
-        int h = min + (int)(Hash.F(b, seedI) * amp);
-        if (Hash.F(b, seedI + 9) > 0.7f && MathF.Abs(local - width / 2f) < 1.5f) h += 14;
-        return h;
-    }
-
-    static int Castle(float wx, int seedI)
-    {
-        int b = (int)MathF.Floor(wx / 46);
-        float local = wx - b * 46;
-        int h = 26 + (int)(Hash.F(b, seedI) * 14);
-        if (local > 14 && local < 26) { h += 20; if (local > 15 && local < 25) h += (int)(8 - MathF.Abs(local - 20) * 1.6f) + 6; }
-        else if (((int)local / 3) % 2 == 0) h += 3;
-        return h;
-    }
-
-    /// <summary>Janelas acesas, presas ao predio (nao piscam ao rolar).</summary>
-    void Windows(int off, int width, int min, int amp, int seedI, Color c, bool castle = false)
-    {
-        int b0 = (int)MathF.Floor(off / (float)width) - 1;
-        for (int b = b0; b < b0 + K.W / width + 3; b++)
-        {
-            int x0 = b * width - off;
-            if (castle)
-            {
-                int h = 26 + (int)(Hash.F(b, seedI) * 14) + 20;
-                if (((int)(time * 2) + b) % 7 != 0) Rect(x0 + 19, K.H - h + 8, 2, 3, c);
-                continue;
-            }
-            int hgt = min + (int)(Hash.F(b, seedI) * amp);
-            int col = 0;
-            for (int wx = x0 + 4; wx < x0 + width - 3; wx += 4, col++)
-            {
-                int row = 0;
-                for (int wy = K.H - hgt + 4; wy < K.H - 4; wy += 5, row++)
-                {
-                    float hv = Hash.F(b * 97 + col, row + seedI);
-                    if (hv > 0.6f && !(hv > 0.97f && MathF.Sin(time * 2 + b) > 0)) Rect(wx, wy, 2, 2, c);
-                }
-            }
-        }
-    }
-
-    void DrawLavaGlow(int off)
-    {
-        for (int x = 0; x <= K.W; x++)
-        {
-            float wx = x + off;
-            int h = Volcano(wx);
-            if (h >= 88)
-            {
-                Rect(x, K.H - h, 1, 3, Orange);
-                if (((int)wx + (int)(time * 20)) % 7 == 0) Rect(x, K.H - h - 2 - (int)(MathF.Sin(time * 4 + wx) * 3), 1, 2, Yellow);
-            }
-        }
+        if (t.Width <= 0) return;
+        float off = scroll % t.Width;
+        for (float x = -off; x < K.W + 1; x += t.Width)
+            Raylib.DrawTextureV(t, new Vector2(x, K.H - t.Height), Color.White);
     }
 
     // ================================================================== HUD e telas (tela, grade de pixels)
@@ -860,11 +656,11 @@ public sealed partial class Game
     void DrawHud()
     {
         var ch = Chars.All[P.Char];
-        Box(4, 4, 20, 20, Hex(0x2a2040));
+        Rect(4, 4, 20, 20, A(Hex(0x2a2040), 0.75f));
         int sx = (int)(scrOx + 4 * scrScale), sy = (int)(scrOy + 4 * scrScale), ss = (int)(20 * scrScale);
         Raylib.EndScissorMode();
         Raylib.BeginScissorMode(sx, sy, ss, ss);
-        Humanoid(14, 30, 1, ch.Look, Anim.Of(AState.Idle, time));
+        Art.Human(Art.Heroes[P.Char], 14, 30, 1, Anim.Of(AState.Idle, time));
         Raylib.EndScissorMode();
         Raylib.BeginScissorMode(scrOx, scrOy, (int)(K.W * scrScale), (int)(K.H * scrScale));
         Text(ch.Name, 28, 4, 10, White);
@@ -875,7 +671,7 @@ public sealed partial class Game
         Text("TIME OUT", tx - 6, 4, 10, Cyan);
         for (int i = 0; i < Math.Min(timeOuts, 8); i++) Hourglass(tx + 50 + i * 7, 5, i);
         if (timeOuts > 8) Text("+" + (timeOuts - 8), tx + 50 + 8 * 7, 4, 10, Cyan);
-        Rect(tx - 6, 16, 60, 3, Ink);
+        Rect(tx - 6, 16, 60, 3, A(Ink, 0.45f));
         Rect(tx - 6, 16, 60 * glorbCount / 12, 3, Magenta);
 
         string m = Meters + " M";
@@ -897,7 +693,7 @@ public sealed partial class Game
     void Hourglass(int x, int y, int i)
     {
         int f = (int)(time * 2 + i * 0.3f) % 4;
-        Rect(x, y, 5, 1, Ink); Rect(x, y + 7, 5, 1, Ink);
+        Rect(x, y, 5, 1, Hex(0x2a8aa8)); Rect(x, y + 7, 5, 1, Hex(0x2a8aa8));
         Rect(x + 1, y + 1, 3, 2 - (f == 3 ? 1 : 0), Cyan); Rect(x + 2, y + 3, 1, 2, Cyan);
         Rect(x + 1, y + 5 + (f == 0 ? 1 : 0), 3, 2 - (f == 0 ? 1 : 0), Hex(0x2a8aa8));
     }
@@ -927,7 +723,7 @@ public sealed partial class Game
         TextC("APERTE PULAR / ATIRAR PARA PARAR AQUI", K.W / 2, K.H - 46, 10, Yellow);
 
         int bw = K.W - 40;
-        Rect(20, K.H - 14, bw, 4, Ink);
+        Rect(20, K.H - 14, bw, 4, A(Ink, 0.5f));
         float pos = hist.Count <= 1 ? 0 : rewindIdx / (float)(hist.Count - 1);
         Rect(20, K.H - 14, (int)(bw * pos), 4, Cyan);
         foreach (var g in ghosts)
@@ -951,9 +747,9 @@ public sealed partial class Game
             int x = x0 + i * slot + slot / 2;
             bool sel = i == selIdx;
             int by = sel ? 58 : 62;
-            Box(x - 24, by, 48, 56, sel ? Hex(0x3a2a6a) : Hex(0x221a36));
-            if (sel) Raylib.DrawRectangleLines(x - 25, by - 1, 50, 58, Yellow);
-            Humanoid(x, by + 46, 1, c.Look, Anim.Of(sel ? AState.Run : AState.Idle, time + i), sel ? 1 : 0.7f);
+            Rect(x - 24, by, 48, 56, sel ? Hex(0x4a3a82) : Hex(0x221a36));
+            if (sel) Rect(x - 24, by + 54, 48, 2, Yellow);
+            Art.Human(Art.Heroes[i], x, by + 46, 1, Anim.Of(sel ? AState.Run : AState.Idle, time + i), sel ? 1 : 0.7f);
         }
         var s = Chars.All[selIdx];
         TextC(s.Name, K.W / 2, 124, 20, White);
@@ -995,7 +791,7 @@ public sealed partial class Game
         for (int i = 0; i < Chars.All.Length; i++)
         {
             int x = K.W / 2 - 80 + i * 40;
-            Humanoid(x, 98, 1, Chars.All[i].Look, Anim.Of(AState.Run, titleT + i * 0.27f));
+            Art.Human(Art.Heroes[i], x, 98, 1, Anim.Of(AState.Run, titleT + i * 0.27f));
         }
         if ((int)(titleT * 2) % 2 == 0) TextC("APERTE ENTER PARA COMECAR", K.W / 2, 108, 10, Yellow);
         ControlsText(122);

@@ -44,11 +44,21 @@ Segure contra uma parede no ar para escalar.
 | Blastronauta | Bazuca | Jato explosivo |
 | Naomi Katana | Katana (rebate balas) | Dash sombrio |
 
+## Arte editável (pasta `design/`)
+
+Todos os sprites, tiles e cenários são PNGs em `design/` — edite em qualquer editor de pixel art
+(Aseprite, Krita, Photoshop, Piskel...). Veja `design/LEIAME.md` para o formato de cada folha.
+
+- Com o jogo aberto, aperte **F5** para recarregar a arte.
+- Apague um PNG para o jogo gerar de novo a versão original.
+- Efeitos (fogo, fumaça, sangue, faíscas, brilhos) continuam gerados por código.
+
 ## Estrutura
 
 - `Game.cs` — loop, estados, rebobinar/seleção
 - `Game.Sim.cs` — física, jogador, fantasmas, inimigos, armas, explosões
 - `Game.Gen.cs` — geração procedural determinística por chunk
 - `Game.Draw.cs` — cenários com parallax, tiles, HUD e telas
-- `Gfx.cs` — sprites pixel art procedurais · `Sfx.cs` — sons e música sintetizados
+- `Art.cs` — carrega a arte de `design/` · `DesignExport.cs` — gera a arte padrão que faltar
+- `Gfx.cs` / `Sprites.cs` — desenho procedural usado para gerar a arte padrão · `Sfx.cs` — sons e música sintetizados
 - `Game.Bot.cs` — autoteste: `JACKASS_AUTOTEST=<pasta> dotnet run` joga sozinho e salva screenshots
