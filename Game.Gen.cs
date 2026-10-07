@@ -160,6 +160,10 @@ public sealed partial class Game
                 case '$': Prop(PropKind.Cage, X(mk.Tx), feet, ref r); break;
                 case 'r': Prop(PropKind.Hostage, X(mk.Tx), feet, ref r); break;
                 case 'o': Prop(PropKind.Glorb, X(mk.Tx), feet - 8, ref r); break;
+                case 'z':
+                    // cabo eletrico soltando faiscas: pendurado no teto/telhado (0) ou num poste caido (1)
+                    S.Props.Add(new Prop { Id = Id(), Kind = PropKind.Wire, X = X(mk.Tx), Y = feet, Char = Ter.Solid(mk.Tx, mk.Row - 1) ? 0 : 1, T = r.Range(0, 5) });
+                    break;
                 case 'v':
                     if (style == BgStyle.City) S.Props.Add(new Prop { Id = Id(), Kind = PropKind.Car, X = X(mk.Tx), Y = feet, Hp = 5, Char = r.Int(0, 3) });
                     else if (r.Chance(0.5f)) Prop(PropKind.Barrel, X(mk.Tx), feet, ref r);
@@ -273,8 +277,8 @@ public sealed partial class Game
         return (-1, false);
     }
 
-    static bool IsEntity(char ch) => "eEaAgGmMwx$rov!^".IndexOf(ch) >= 0;
-    static bool IsBack(char ch) => ch is '.' or ',' or ';' or ':' or '_';
+    static bool IsEntity(char ch) => "eEaAgGmMwx$rovz!^".IndexOf(ch) >= 0;
+    static bool IsBack(char ch) => ch is '.' or ',' or ';' or ':' or '_' or '*';
 
     /// <summary>Copia um modulo para o mapa a partir da coluna tx0, com o chao da entrada na linha h.
     /// Sorteia as variacoes, cria salas e paredes de fundo e anota inimigos/objetos/eventos em marks.
@@ -320,7 +324,9 @@ public sealed partial class Game
                 if (IsEntity(ch))
                 {
                     marks.Add(new Mark(ch, tx0 + x, y + off));
-                    ch = BackAt(x, y, false);
+                    // em cima da linha do comboio o trilho continua por baixo do inimigo/objeto
+                    bool rail = x > 0 && Src(x - 1, y) == '~' || x < W - 1 && Src(x + 1, y) == '~';
+                    ch = rail ? '~' : BackAt(x, y, false);
                 }
                 else if (ch == 'c') ch = r.Chance(0.5f) ? 'C' : BackAt(x, y, true);
                 else if (ch == 'b') ch = r.Chance(0.5f) ? 'B' : BackAt(x, y, true);
@@ -329,7 +335,7 @@ public sealed partial class Game
                 g[x, y] = ch;
             }
         char G(int x, int y) => x < 0 || x >= W || y < 0 || y >= Hh ? '.' : g[x, y];
-        static bool Inside(char ch) => ch is ',' or ';';
+        static bool Inside(char ch) => ch is ',' or ';' or '*';
         bool HouseLadder(int x, int y) => G(x, y) == 'H' && (Inside(G(x - 1, y)) || Inside(G(x + 1, y)));
 
         // 2) colunas: terreno, superficie e fundos
@@ -349,7 +355,7 @@ public sealed partial class Game
             {
                 int my = wy - off;
                 char ch = my < 0 ? '.' : my < Hh ? g[x, my] : last;     // a ultima linha se repete ate o fundo
-                if (my >= Hh && ch is 'H' or ',' or ';' or ':' or 'D' or 'T') ch = '.';
+                if (my >= Hh && ch is 'H' or ',' or ';' or ':' or 'D' or 'T' or 'V' or '~' or '*') ch = '.';
                 bool bottom = wy == K.ROWS - 1;
                 ushort Tile(int type) => Terrain.Make(type, 0, (int)Hash.H(tx, wy));
                 ushort v = 0;
@@ -360,7 +366,7 @@ public sealed partial class Game
                     {
                         // aparencia: grama na superficie (menos dentro de casa), terra logo abaixo, terra funda
                         int look = surf < 0 ? 2 : Math.Clamp(my - surf, 0, 2);
-                        if (look == 0 && G(x, my - 1) is ',' or ';' or ':') look = 1;
+                        if (look == 0 && G(x, my - 1) is ',' or ';' or ':' or '*') look = 1;
                         v = bottom ? Terrain.Make(Terrain.BEDROCK, 0, (int)Hash.H(tx, wy), 2)
                                    : Terrain.Make(Terrain.DIRT, 0, (int)Hash.H(tx, wy), look);
                         break;
@@ -369,11 +375,14 @@ public sealed partial class Game
                     case 'S': v = Tile(Terrain.STEEL); break;
                     case 'C': v = bottom ? Tile(Terrain.BEDROCK) : Tile(Terrain.CRATE); break;
                     case 'T': v = Tile(Terrain.ROOF); break;
+                    case 'V': v = Tile(Terrain.WAGON); break;
+                    case '~': v = Tile(Terrain.RAIL); break;
                     case 'D': v = Terrain.Make(Terrain.DOOR, 0, 0, G(x, my - 1) == 'D' ? 1 : 0); break;
                     case 'H': v = Tile(Terrain.LADDER); break;
                     case '=': v = Tile(Terrain.BRIDGE); break;
                     case '-': case '|': v = Tile(Terrain.CONCRETE); break;
                     case ',': case ';': back = Terrain.BACK_HOUSE; break;
+                    case '*': back = Terrain.BACK_WAGON; break;
                     case ':': back = Terrain.BACK_WALL; break;
                     case '_': back = Terrain.BACK_EARTH; break;
                 }
@@ -391,13 +400,18 @@ public sealed partial class Game
                 char ch = g[x, y];
                 if (ch == 'H')
                     Ter.SetBack(tx, wy, HouseLadder(x, y) ? Terrain.BACK_HOUSE : Ter.InGround(tx, wy) ? Terrain.BACK_EARTH : Terrain.BACK_WALL);
-                else if (ch is 'B' or 'S' or 'D' or 'C')
+                else if (ch is 'B' or 'S' or 'D' or 'C' or 'V')
                 {
-                    bool near = false;
-                    for (int dy = -1; dy <= 1 && !near; dy++)
-                        for (int dx = -1; dx <= 1 && !near; dx++)
-                            near = Inside(G(x + dx, y + dy)) || HouseLadder(x + dx, y + dy);
-                    if (near) Ter.SetBack(tx, wy, Terrain.BACK_HOUSE);
+                    // fundo do interior vizinho: casa (',' ';') ou vagao ('*')
+                    int near = Terrain.BACK_NONE;
+                    for (int dy = -1; dy <= 1 && near == Terrain.BACK_NONE; dy++)
+                        for (int dx = -1; dx <= 1 && near == Terrain.BACK_NONE; dx++)
+                        {
+                            char n = G(x + dx, y + dy);
+                            if (n == '*') near = Terrain.BACK_WAGON;
+                            else if (Inside(n) || HouseLadder(x + dx, y + dy)) near = Terrain.BACK_HOUSE;
+                        }
+                    if (near != Terrain.BACK_NONE) Ter.SetBack(tx, wy, near);
                 }
             }
 

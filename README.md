@@ -31,8 +31,11 @@ Segure contra uma parede no ar para escalar. Pontes de madeira: atire nas tábua
 - **Time Out**: ao morrer (ou apertar L), o tempo rebobina até 10s. Escolha onde parar e um herói;
   sua vida anterior vira um fantasma que repete exatamente o que você fez, atirando junto.
 - **Salvar seu eu do passado**: mate o inimigo que matou seu fantasma antes da hora e ganhe um escudo.
-- **Prisioneiros nas jaulas**: +1 Time Out. **Glorbs**: 12 dão +1 especial.
+- **Prisioneiros nas jaulas**: +1 Time Out. Encoste na jaula de lado para libertar (ou, em cima dela, segure
+  para baixo); dá para ficar em pé em cima da jaula. **Glorbs**: 12 dão +1 especial.
 - **Terreno destrutível**: balas quebram tijolos/terra/caixotes; explosões abrem crateras. Aço é indestrutível.
+  Os inimigos também estragam o cenário: as balas deles desgastam os blocos (`GameConfig.DanoBalaInimigaNosBlocos`)
+  e as explosões (bazuca, granada, bomba) destroem.
 - **Desabamentos**: estruturas sem apoio caem e esmagam quem estiver embaixo. Alguns blocos **nunca caem** (terra,
   concreto, aço) e seguram o que estiver encostado neles; o **telhado** solto nem sempre cai e, quando cai, parte-se
   no chão. Ajuste em `GameConfig.cs` (`TerraNuncaCai`, `TijoloNuncaCai`, `ChanceTelhadoCair`...).
@@ -64,6 +67,8 @@ Segure contra uma parede no ar para escalar. Pontes de madeira: atire nas tábua
   3 Castelo Medieval → 4 **São Paulo em Caos** → 5 Futuro Neon; depois os cenários repetem, cada vez mais difíceis.
   O fim de cada level tem uma **bandeira**: ao passar, aparece o balanço (inimigos, resgates) e um bônus de pontos.
   Na cidade: prédios detalhados, calçada portuguesa, viadutos de concreto, pixo, incêndios e **carros destruídos** que explodem depois de alguns tiros.
+  Na selva: **comboio abandonado** (vagões e locomotiva para atravessar por dentro, cabos elétricos partidos a soltar
+  faíscas), **túnel de comboio** num morro e uma **escotilha** ao estilo de *Lost* que desce para um bunker.
 
 ## Heróis
 

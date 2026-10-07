@@ -132,6 +132,13 @@ public sealed partial class Game
                             new Vector2(tx * K.T - cam, ty * K.T - camY + shY), Color.White);
                         BackShade(tx, ty);
                     }
+                    else if (Terrain.BackOf(b) == Terrain.BACK_WAGON)
+                    {
+                        // dentro do vagao: fileira de cima com janela, de baixo com banco
+                        Raylib.DrawTextureRec(Art.Wagon, new Rectangle((Ter.Solid(tx, ty - 1) ? 6 : 5) * K.T, 0, K.T, K.T),
+                            new Vector2(tx * K.T - cam, ty * K.T - camY + shY), Color.White);
+                        BackShade(tx, ty);
+                    }
                     else
                     {
                         int kind = Terrain.BackOf(b);
@@ -253,6 +260,30 @@ public sealed partial class Game
             }
             return;
         }
+        if (type == Terrain.WAGON)
+        {
+            // chapa do comboio: teto (nada em cima), chassi com roda (nada de vagao embaixo) ou chapa lateral
+            ushort below = Ter.Get(tx, ty + 1);
+            int bt = Terrain.TypeOf(below);
+            bool chassis = bt != Terrain.WAGON && bt != Terrain.DOOR && Terrain.BackOf(below) != Terrain.BACK_WAGON;
+            bool Car(int d) => Ter.Type(tx + d, ty) == Terrain.WAGON;
+            int part = !decor ? 1
+                : chassis ? (!Car(-1) || !Car(-2) || !Car(1) || !Car(2) ? 3 : 7)    // rodas so nas pontas (truques)
+                : Ter.Type(tx, ty - 1) != Terrain.WAGON && !Ter.Solid(tx, ty - 1) ? 0
+                : hsh % 5 == 0 ? 2 : 1;
+            Raylib.DrawTextureRec(Art.Wagon, new Rectangle(part * K.T, 0, K.T, K.T), new Vector2(x, y), Color.White);
+            if (dmg > 0)
+            {
+                int stage = Math.Clamp((dmg * 3 + Terrain.HpOf(type) - 1) / Terrain.HpOf(type), 1, 3);
+                Raylib.DrawTextureRec(tex, new Rectangle((3 + stage) * K.T, 3 * K.T, K.T, K.T), new Vector2(x, y), Color.White);
+            }
+            return;
+        }
+        if (type == Terrain.RAIL)
+        {
+            Raylib.DrawTextureRec(Art.Wagon, new Rectangle(4 * K.T, 0, K.T, K.T), new Vector2(x, y), Color.White);
+            return;
+        }
         if (type == Terrain.ROOF)
         {
             // telhado: pontas com beiral, meio com telhas; enfeite (antena, chamine) em cima de alguns
@@ -367,6 +398,9 @@ public sealed partial class Game
                 }
                 case PropKind.Glorb:
                     Art.Cell(Art.Glorb, (int)(p.T * 5) % 4, 0, x, y + (int)MathF.Round(MathF.Sin(p.T * 3) * 2));
+                    break;
+                case PropKind.Wire:
+                    DrawWire(p, x, y);
                     break;
             }
         }
@@ -573,7 +607,7 @@ public sealed partial class Game
             // arma principal com sprite proprio (ex.: batarangue do Batman): gira depois de lancada
             if (b.Char >= 0 && b.Char < Art.HeroWeapon.Length && Art.HeroWeapon[b.Char] is Texture2D wt)
             {
-                float ang = b.T * Tune.WeaponSpin * b.Spin;
+                float ang = b.T * HeroConfig.Of(b.Char).RotacaoArma * b.Spin;
                 Raylib.DrawTexturePro(wt, new Rectangle(0, 0, wt.Width, wt.Height), new Rectangle(x, y, wt.Width, wt.Height),
                     new Vector2(wt.Width / 2f, wt.Height / 2f), ang, A(White, a));
                 continue;

@@ -36,7 +36,6 @@ static class Tune
     public const float WalkSpeed = 40;          // patrulha do soldado (brutamontes: 2/3 disso)
     public const float AdvanceRange = 100;      // alertado e mais longe que isso: avanca na direcao do heroi
     public const float BridgeFall = 1.5f;       // segundos ate a tabua de madeira pisada pelo heroi cair
-    public const float WeaponSpin = 2000;        // graus por segundo do giro do sprite da arma lancada (armour/)
 
     // inimigos novos
     public const float ShieldTurn = 0.6f;       // escudeiro: segundos com o heroi nas costas ate virar
@@ -238,6 +237,19 @@ public sealed partial class Game
 
     // ------------------------------------------------------------------ jogador
 
+    /// <summary>O heroi (centro x) passou do topo de uma jaula descendo de preY para y? Devolve a altura do topo.</summary>
+    bool CageTop(float x, float preY, float y, out float top)
+    {
+        top = 0;
+        foreach (var cg in S.Props)
+        {
+            if (cg.Done || cg.Kind != PropKind.Cage || MathF.Abs(x - cg.X) > 11) continue;
+            float t = cg.Y - CageH;
+            if (preY <= t + 0.5f && y >= t) { top = t; return true; }
+        }
+        return false;
+    }
+
     /// <summary>Altura da caixa de colisao do heroi: um pouco menor que 1 bloco, para passar com folga
     /// por vaos de 1 bloco de altura (o sprite continua com 18px).</summary>
     const float PH = 14f;
@@ -363,7 +375,14 @@ public sealed partial class Game
         bool wasGround = p.OnGround;
         // segurar para baixo em cima de uma ponte: desce atraves dela
         if (!p.OnLadder && i.Down && !i.Up && p.OnGround && OnPlatform(p.X, p.Y, 3.5f) && !Overlaps(p.X, p.Y + 1, 3.5f, PH)) drop = true;
+        float preY = p.Y;
         p.OnGround = MoveBody(ref p.X, ref p.Y, ref p.VX, ref p.VY, 3.5f, PH, out _, drop);
+        // topo da jaula: piso de mao unica (da para ficar em cima). Segurar para baixo em cima dela entra na jaula
+        // e liberta o prisioneiro, como encostar de lado.
+        if (!p.OnLadder && p.VY >= 0 && !(i.Down && !i.Up) && CageTop(p.X, preY, p.Y, out float ctop))
+        {
+            p.Y = ctop; p.VY = 0; p.OnGround = true;
+        }
         if (p.OnLadder && p.OnGround && i.Down && !Ter.LadderAt(p.X, p.Y + 2)) p.OnLadder = false;   // chegou ao chao
         if (p.OnLadder) p.OnGround = false;
         if (wasGround && !p.OnGround && p.VY >= 0 && !p.OnLadder) p.Coyote = 0.08f;
@@ -882,6 +901,9 @@ public sealed partial class Game
                 case PropKind.Car:
                     UpdateCar(p);
                     break;
+                case PropKind.Wire:
+                    UpdateWire(p);
+                    break;
                 case PropKind.Cage:
                 {
                     // gravidade: se o chao embaixo sumir, a jaula cai (e solta o que estava em cima dela)
@@ -980,7 +1002,7 @@ public sealed partial class Game
                 {
                     if (b.Kind == BulletKind.EFlame) { BurnTile(tx, ty); b.Dead = true; break; }
                     if (b.ExplodeR > 0) { b.Dead = true; Explode(b.X, b.Y, b.ExplodeR, b.FromPlayer, b.OwnerId); break; }
-                    DamageTile(tx, ty, b.FromPlayer ? BlockDmg(b, tx, ty) : 1);
+                    DamageTile(tx, ty, b.FromPlayer ? BlockDmg(b, tx, ty) : Math.Max(1, GameConfig.DanoBalaInimigaNosBlocos));
                     if (b.Kind == BulletKind.Batarang && !b.Ghost) { b.X = ox; b.Y = oy; b.T = MathF.Max(b.T, BatarangOut); break; }
                     if (b.Kind != BulletKind.Laser) { b.Dead = true; break; }
                 }
@@ -1015,7 +1037,12 @@ public sealed partial class Game
                     }
                     b.Dead = true;
                     if (b.ExplodeR > 0) Explode(b.X, b.Y, b.ExplodeR, false, b.OwnerId);
-                    else AddPart(PKind.Spark, b.X, b.Y, fx.Next(-40, 40), -fx.Next(10, 50), 0.15f, 1, Orange);
+                    else
+                    {
+                        // bala inimiga tambem estraga o cenario (GameConfig.DanoBalaInimigaNosBlocos)
+                        if (GameConfig.DanoBalaInimigaNosBlocos > 0) DamageTile(tx, ty, GameConfig.DanoBalaInimigaNosBlocos);
+                        AddPart(PKind.Spark, b.X, b.Y, fx.Next(-40, 40), -fx.Next(10, 50), 0.15f, 1, Orange);
+                    }
                     break;
                 }
                 BulletEntityHits(b);

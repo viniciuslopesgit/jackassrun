@@ -56,6 +56,7 @@ public sealed class HeroStats
     // animacao
     public float FpsCorrida;            // frames por segundo da animacao de correr (na velocidade normal; acelera/abranda com o heroi)
     public float FpsAnimacoes;          // frames por segundo das outras animacoes desenhadas em pastas (stop, jump, fall...)
+    public float RotacaoArma;           // graus por segundo do giro da arma lancada (sprite da pasta armour/; 0 = nao gira)
 }
 
 /// <summary>Variaveis de cada heroi. Edite os numeros aqui e rode o jogo de novo.
@@ -76,7 +77,8 @@ public static class HeroConfig
             QuedaPlanando = 400,
 
             IntervaloTiro = 0.20f,
-            VelocidadeTiro = 400,
+            VelocidadeTiro = 200,
+            RotacaoArma = 1000,
             DanoTiro = 4,
             DispersaoTiro = 1,
             AlcanceTiro = 1f,
@@ -132,6 +134,7 @@ public static class HeroConfig
             AberturaEspecial = 0,
             FpsCorrida = 14,
             FpsAnimacoes = 10,
+            RotacaoArma = 720,
         },
         // ------------------------------------------------------------------ HOMEM-ARANHA
         new HeroStats
@@ -164,6 +167,7 @@ public static class HeroConfig
             AberturaEspecial = 55,
             FpsCorrida = 14,
             FpsAnimacoes = 10,
+            RotacaoArma = 720,
         },
     };
 

@@ -72,7 +72,6 @@
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/herois/homem_aranha.png
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/herois/tomb_raider.png
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/objetos/projeteis.png
-/Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/herois/batman.png
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/herois/batman/running/.DS_Store
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/herois/batman/running/00.png
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/herois/batman/running/01.png
@@ -136,3 +135,9 @@
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/inimigos/medieval_escudeiro.png
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/inimigos/selva_escudeiro.png
 /Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/tiles/telhado.png
+/Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/tiles/vagao.png
+/Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/herois/batman.png
+/Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/herois/batman/jumping/00.png
+/Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/herois/batman/falling/.DS_Store
+/Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/herois/batman/falling/00.png
+/Users/viniciuslopes/Desktop/Jackass Run New/JackassRun/bin/Debug/net10.0/design/sprites/herois/batman/jumping/.DS_Store

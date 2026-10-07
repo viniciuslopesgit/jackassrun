@@ -27,6 +27,11 @@ public static class GameConfig
     /// <summary>Quantos blocos de altura os inimigos aceitam descer de uma beirada para chegar ao heroi.</summary>
     public const int InimigosDescemBlocos = 6;
 
+    /// <summary>Dano de cada bala inimiga nos blocos do cenario (vida dos blocos: terra 8, tijolo 5, caixa 3,
+    /// porta 2, telhado 3; aco e rocha nao quebram, concreto so com explosao). 0 = balas inimigas nao estragam
+    /// o cenario. As explosoes dos inimigos (bazuca, granada, bomba, homem-bomba) destroem os blocos sempre.</summary>
+    public const int DanoBalaInimigaNosBlocos = 1;
+
     // ------------------------------------------------------------------ desabamento de blocos
 
     // Blocos que NUNCA caem, mesmo sem nada embaixo: true = ficam presos no lugar e seguram o que esta encostado
@@ -36,6 +41,7 @@ public static class GameConfig
     public const bool TijoloNuncaCai = false;
     public const bool CaixaNuncaCai = false;
     public const bool PortaNuncaCai = false;
+    public const bool VagaoNuncaCai = true;      // chapa de metal dos vagoes e da locomotiva (comboio abandonado)
 
     /// <summary>Chance (0 a 1) de um bloco de telhado cair quando perde o apoio (ex.: as paredes da casa foram
     /// destruidas). Se nao cair, fica preso no lugar. O telhado que cai se parte ao bater no chao. 0 = nunca cai.</summary>
@@ -46,6 +52,7 @@ public static class GameConfig
     {
         Terrain.DIRT => TerraNuncaCai, Terrain.CONCRETE => ConcretoNuncaCai, Terrain.BRICK => TijoloNuncaCai,
         Terrain.CRATE => CaixaNuncaCai, Terrain.DOOR => PortaNuncaCai, Terrain.ROOF => ChanceTelhadoCair <= 0,
+        Terrain.WAGON => VagaoNuncaCai,
         _ => Terrain.Unbreakable(type),
     };
 }

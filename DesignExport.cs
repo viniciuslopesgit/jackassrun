@@ -130,6 +130,7 @@ public static class DesignExport
         Need(TilePath(root, "parede"), Eras.All.Length * K.T, 2 * K.T, HouseWall);
         Need(TilePath(root, "concreto"), K.T, 2 * K.T, ConcreteTiles);
         Need(TilePath(root, "telhado"), 4 * K.T, Eras.All.Length * K.T, RoofTiles);
+        Need(TilePath(root, "vagao"), 8 * K.T, K.T, WagonTiles);
         Need(PropPath(root, "refem"), CW * Cols, CH * Rows, () => CharSheet(HostageLook));
         Need(PropPath(root, "paraquedas"), 24, 18, ParachuteArt);
         Need(PropPath(root, "carro"), 3 * 32, 16, CarArt);
@@ -751,6 +752,108 @@ public static class DesignExport
         // pontas: tabua de beiral
         if (part == 0) { Rect(x, y, 2, T, d); Rect(x + 2, y + 1, 1, T - 1, Mul(b, 0.8f)); Px(x, y, Mul(d, 0.7f)); }
         if (part == 2) { Rect(x + T - 2, y, 2, T, d); Rect(x + T - 3, y + 1, 1, T - 1, Mul(b, 0.8f)); Px(x + T - 1, y, Mul(d, 0.7f)); }
+    }
+
+    /// <summary>vagao.png (128x16): comboio abandonado na selva. Colunas: 0 teto (chapa com cobertura e musgo),
+    /// 1 chapa lateral, 2 chapa enferrujada com furo, 3 chassi com roda (pontas do vagao), 4 trilho (enfeite no
+    /// chao, atravessa-se), 5 interior de baixo (com banco), 6 interior de cima (janela partida), 7 chassi sem roda
+    /// (meio do vagao).</summary>
+    static void WagonTiles()
+    {
+        const int T = K.T;
+        var body = Hex(0x3f6e5c); var dark = Hex(0x26453a); var light = Hex(0x6a9e84);
+        var rust = Hex(0xa0582a); var rustD = Hex(0x6a3a1e); var moss = Hex(0x5a8e2c); var mossL = Hex(0x86b84a);
+        var stripe = Hex(0xb8a050);
+        void Panel(int x, bool holey)
+        {
+            Rect(x, 0, T, T, body);
+            Rect(x, 0, 1, T, dark); Rect(x + 1, 0, 1, T, light); Rect(x + T - 1, 0, 1, T, Mul(dark, 0.8f));
+            Rect(x + 1, 9, T - 2, 2, A(stripe, 0.55f));                                // faixa pintada desbotada
+            foreach (var (rx, ry) in new[] { (3, 2), (12, 2), (3, 13), (12, 13) }) { Px(x + rx, ry, Mul(light, 1.15f)); Px(x + rx, ry + 1, dark); }
+            // escorrido de ferrugem
+            Rect(x + 6, 3, 2, 4, rust); Rect(x + 6, 7, 1, 4, rust); Px(x + 7, 7, rustD); Px(x + 6, 11, rustD);
+            Rect(x + 10, 11, 3, 2, Mul(rust, 0.9f)); Px(x + 11, 13, rustD);
+            if (holey)
+            {
+                // buraco de ferrugem: bordas rasgadas e o escuro de dentro
+                Rect(x + 4, 3, 7, 6, rust); Rect(x + 5, 4, 5, 4, Hex(0x14100e)); Px(x + 4, 3, rustD); Px(x + 10, 8, rustD);
+                Px(x + 5, 3, Hex(0x14100e)); Px(x + 9, 8, Hex(0x14100e)); Px(x + 11, 5, rust); Px(x + 3, 6, rust);
+            }
+        }
+        // 0 teto
+        Panel(0, false);
+        var cap = Hex(0x55595c); var capL = Hex(0x7a7e80);
+        Rect(1, 0, T - 2, 1, capL); Rect(0, 1, T, 2, cap); Rect(0, 3, T, 1, Hex(0x2a2c2e));
+        for (int i = 2; i < T; i += 4) Px(i, 1, Mul(cap, 0.75f));
+        foreach (int mx in new[] { 2, 3, 9, 13 }) { Px(mx, 0, moss); Px(mx, 1, mossL); }
+        Rect(8, 4, 1, 3, moss); Px(8, 7, mossL);                                       // cipo descendo
+        // 1 e 2 chapas
+        Panel(T, false);
+        Panel(2 * T, true);
+        // 3 chassi com roda, por cima do trilho
+        {
+            int x = 3 * T;
+            var beam = Hex(0x2c2c30); var frame = Hex(0x1c1c20);
+            Rect(x, 14, T, 1, Hex(0xb8b8c0)); Rect(x, 15, T, 1, Hex(0x6a6a72));       // trilho
+            Rect(x, 0, T, 5, beam); Rect(x, 0, T, 1, Hex(0x4a4a50)); Rect(x, 4, T, 1, frame);
+            Rect(x + 3, 1, 3, 2, rust); Px(x + 11, 2, rust);
+            Rect(x + 2, 5, 12, 2, frame);
+            // roda
+            var rim = Hex(0x3a3a40); var wheel = Hex(0x5a5a62); var hub = Hex(0x9a9aa2);
+            Rect(x + 4, 7, 8, 7, rim); Rect(x + 3, 8, 10, 5, rim);
+            Rect(x + 5, 8, 6, 5, wheel); Rect(x + 4, 9, 8, 3, wheel);
+            Rect(x + 7, 9, 2, 3, hub); Px(x + 7, 9, Hex(0xc8c8d0));
+            Px(x + 5, 8, rust); Px(x + 10, 12, rust);
+        }
+        // 7 chassi sem roda (meio do vagao): viga, sombra e o trilho por baixo
+        {
+            int x = 7 * T;
+            var beam = Hex(0x2c2c30); var frame = Hex(0x1c1c20);
+            Rect(x, 0, T, 5, beam); Rect(x, 0, T, 1, Hex(0x4a4a50)); Rect(x, 4, T, 1, frame);
+            Rect(x + 9, 1, 3, 2, rust); Px(x + 3, 2, rust);
+            Rect(x, 5, T, 2, frame);
+            Rect(x + 2, 7, 12, 1, A(Hex(0x000000), 0.35f));
+            Rect(x + 5, 7, 2, 4, frame); Rect(x + 4, 10, 4, 1, frame);                // tanque de freio pendurado
+            var wood = Hex(0x5a3e26);
+            Rect(x + 1, 14, 6, 2, wood); Rect(x + 9, 14, 6, 2, wood);
+            Rect(x, 12, T, 1, Hex(0xb8b8c0)); Rect(x, 13, T, 1, Hex(0x6a6a72));
+        }
+        // 4 trilho: dormentes de madeira, trilho de aco e um tufo de mato
+        {
+            int x = 4 * T;
+            var wood = Hex(0x5a3e26);
+            Rect(x + 1, 14, 6, 2, wood); Rect(x + 9, 14, 6, 2, wood);
+            Rect(x + 1, 14, 6, 1, Mul(wood, 1.25f)); Rect(x + 9, 14, 6, 1, Mul(wood, 1.25f));
+            Rect(x, 12, T, 1, Hex(0xb8b8c0)); Rect(x, 13, T, 1, Hex(0x6a6a72));
+            Px(x + 5, 12, rust); Px(x + 12, 13, rustD);
+            Px(x + 8, 11, moss); Px(x + 8, 10, mossL); Px(x + 7, 11, moss);
+        }
+        // 5 interior de baixo (banco) e 6 interior de cima (janela partida)
+        for (int k = 0; k < 2; k++)
+        {
+            int x = (5 + k) * T;
+            var wall = Hex(0x1e302a);
+            Rect(x, 0, T, T, wall);
+            for (int i = 0; i < T; i += 5) Rect(x + i, 0, 1, T, Hex(0x263c34));
+            if (k == 0)
+            {
+                var seat = Hex(0x5a3a22);
+                Rect(x + 1, 9, 14, 2, seat); Rect(x + 1, 9, 14, 1, Mul(seat, 1.3f));
+                Rect(x + 2, 11, 1, 5, Hex(0x2a2a2e)); Rect(x + 13, 11, 1, 5, Hex(0x2a2a2e));
+                Rect(x + 1, 3, 14, 1, Hex(0x4a5a54));                                // corrimao
+                Rect(x + 5, 10, 3, 1, Hex(0x8a5a2a));                                  // rasgo no estofado
+            }
+            else
+            {
+                var frameC = Hex(0x14201c); var glass = Hex(0x5a8a6a);
+                Rect(x + 2, 3, 12, 10, frameC);
+                Rect(x + 3, 4, 10, 8, glass);
+                Rect(x + 3, 4, 4, 2, Hex(0x9ac8a0));                                   // luz da selva
+                // vidro partido
+                Rect(x + 8, 6, 3, 3, frameC); Px(x + 7, 7, frameC); Px(x + 11, 9, frameC); Px(x + 9, 5, frameC);
+                Rect(x + 7, 12, 1, 3, moss); Px(x + 7, 15, mossL);                     // cipo entrando pela janela
+            }
+        }
     }
 
     /// <summary>Enfeite em cima do telhado: antena de TV (cidade), parabolica (futuro), chamine (selva e medieval),
@@ -1808,11 +1911,12 @@ Em vez de editar a folha `sprites/herois/NOME.png`, pode desenhar uma animacao f
 - Um PNG por frame, todos do mesmo tamanho (ex.: 32x32), tocados por ordem alfabetica.
 - O heroi olha para a DIREITA. Os pes ficam centrados na horizontal; a linha mais baixa desenhada e o chao.
 - Fundo: transparente, ou uma cor solida (a cor do pixel do canto superior esquerdo vira transparente).
-- Pastas aceites: stop (parado), running (a correr), jump, fall, climb, dash, hurt, cheer, tumble.
+- Pastas aceites: stop ou idle (parado), running ou run (a correr), jumping ou jump (subindo no pulo),
+  falling ou fall (caindo), climbing ou climb (escalando/escada), dash, hurt, cheer, tumble.
   A que nao existir continua a usar a folha. F5 recarrega.
 - Arma principal: um PNG na pasta armour/ do heroi (ex.: sprites/herois/batman/armour/shuriken.png) substitui o
   projetil padrao desse heroi. A imagem e desenhada centrada no projetil e gira depois de lancada
-  (velocidade em Tune.WeaponSpin, graus por segundo). Fundo transparente.
+  (velocidade em RotacaoArma, no HeroConfig.cs, graus por segundo). Fundo transparente.
 
 ## tiles/ponte.png, escada.png, concreto.png e parede.png
 
@@ -1830,6 +1934,12 @@ Em vez de editar a folha `sprites/herois/NOME.png`, pode desenhar uma animacao f
   (chamine, ossos, antena de TV, parabolica), que aparece sozinho em alguns blocos do meio.
 - Na cidade e telha colonial de barro; no medieval, ardosia; na selva, palha; no jurassico, folhas; no futuro,
   painel solar.
+
+## tiles/vagao.png (comboio abandonado da selva)
+- 128x16, celulas de 16x16: 0 teto do vagao (com musgo), 1 chapa lateral, 2 chapa enferrujada com furo,
+  3 chassi com roda (pontas do vagao), 4 trilho (desenhado em cima do chao), 5 interior de baixo (banco),
+  6 interior de cima (janela partida), 7 chassi sem roda (meio do vagao).
+- O jogo escolhe a peca sozinho pela vizinhanca. Os cabos eletricos que soltam faiscas sao desenhados pelo codigo.
 
 ## sprites/objetos/paraquedas.png
 - paraquedas.png (24x18): copula dos paraquedistas; o ponto onde as cordas se juntam fica no fundo, ao centro

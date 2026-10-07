@@ -206,6 +206,7 @@ public sealed partial class Game
     static Color TileColor(int type, Era e) => type switch
     {
         Terrain.DIRT => e.Dirt, Terrain.BRICK => e.Brick, Terrain.STEEL => e.Steel, Terrain.BEDROCK => e.DirtDark, Terrain.DOOR => Hex(0x9a6432), Terrain.CONCRETE => Hex(0xa8a49c),
+        Terrain.WAGON => Hex(0x4a7a66), Terrain.RAIL => Hex(0x8a8a92),
         Terrain.ROOF => e.Style switch { BgStyle.City => Hex(0xb04a2a), BgStyle.Medieval => Hex(0x5a6478), BgStyle.Future => Hex(0x3a4a7a), BgStyle.Dino => Hex(0x5a8a2a), _ => Hex(0xb8963a) },
         _ => Hex(0xa8743a),
     };

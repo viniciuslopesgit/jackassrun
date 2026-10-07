@@ -31,7 +31,7 @@ public static class Art
     public static Texture2D[] Backs = Array.Empty<Texture2D>();     // paredes de fundo por era (tiles/fundo_<era>.png)
     public static Texture2D[] Tiles = Array.Empty<Texture2D>(), Sky = Array.Empty<Texture2D>(),
         Far = Array.Empty<Texture2D>(), Mid = Array.Empty<Texture2D>();
-    public static Texture2D Bridge, Ladder, HouseWall, Concrete, Roof;
+    public static Texture2D Bridge, Ladder, HouseWall, Concrete, Roof, Wagon;
     /// <summary>Sprite da arma principal de cada heroi (sprites/herois/NOME/armour/*.png), se existir.</summary>
     public static Texture2D?[] HeroWeapon = Array.Empty<Texture2D?>();
     static readonly List<Texture2D> loaded = new();
@@ -97,6 +97,7 @@ public static class Art
         HouseWall = Tex(DesignExport.TilePath(Root, "parede"));
         Concrete = Tex(DesignExport.TilePath(Root, "concreto"));
         Roof = Tex(DesignExport.TilePath(Root, "telhado"));
+        Wagon = Tex(DesignExport.TilePath(Root, "vagao"));
         Hostage = Make(DesignExport.PropPath(Root, "refem"), cw, ch, DesignExport.AX, DesignExport.AY, Gfx.Pivot);
         Barrel = Make(DesignExport.PropPath(Root, "barril"), 16, 16, 8, 15, 0);
         Glorb = Make(DesignExport.PropPath(Root, "glorb"), 16, 16, 8, 8, 0);
@@ -107,11 +108,14 @@ public static class Art
         return generated;
     }
 
-    /// <summary>Nome da pasta de cada animacao (sprites/herois/NOME_DO_HEROI/PASTA/*.png).</summary>
+    /// <summary>Nome da pasta de cada animacao (sprites/herois/NOME_DO_HEROI/PASTA/*.png). Aceita os dois nomes
+    /// (ex.: "fall" ou "falling"); se existirem os dois, vale o primeiro da lista.</summary>
     public static readonly (string dir, AState st)[] AnimDirs =
     {
-        ("stop", AState.Idle), ("running", AState.Run), ("jump", AState.Jump), ("fall", AState.Fall),
-        ("climb", AState.Climb), ("dash", AState.Dash), ("hurt", AState.Hurt), ("cheer", AState.Cheer), ("tumble", AState.Tumble),
+        ("stop", AState.Idle), ("idle", AState.Idle), ("running", AState.Run), ("run", AState.Run),
+        ("jumping", AState.Jump), ("jump", AState.Jump), ("falling", AState.Fall), ("fall", AState.Fall),
+        ("climbing", AState.Climb), ("climb", AState.Climb), ("dash", AState.Dash), ("dashing", AState.Dash),
+        ("hurt", AState.Hurt), ("cheer", AState.Cheer), ("tumble", AState.Tumble),
     };
 
     static void LoadAnims(Sheet s, string dir)
@@ -120,7 +124,7 @@ public static class Art
         foreach (var (name, st) in AnimDirs)
         {
             var d = Path.Combine(dir, name);
-            if (!Directory.Exists(d)) continue;
+            if (s.Anims.ContainsKey(st) || !Directory.Exists(d)) continue;
             var files = Directory.GetFiles(d, "*.png").OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToArray();
             if (files.Length == 0) continue;
             try { s.Anims[st] = MakeStrip(files); }
@@ -140,14 +144,15 @@ public static class Art
         {
             var im = imgs[k];
             byte* d = (byte*)im.Data;
-            byte r0 = d[0], g0 = d[1], b0 = d[2], a0 = d[3];
+            byte a0 = d[3];
             byte* o = (byte*)strip.Data;
+            var bg = a0 == 255 ? Background(d, im.Width, im.Height) : null;
             for (int y = 0; y < im.Height; y++)
                 for (int x = 0; x < im.Width; x++)
                 {
                     byte* p = d + (y * im.Width + x) * 4;
                     if (p[3] == 0) continue;
-                    if (a0 == 255 && p[0] == r0 && p[1] == g0 && p[2] == b0) continue;   // fundo
+                    if (bg != null && bg[y * im.Width + x]) continue;                    // fundo
                     byte* q = o + (y * w * n + k * w + x) * 4;
                     q[0] = p[0]; q[1] = p[1]; q[2] = p[2]; q[3] = p[3];
                     bottom = Math.Max(bottom, y);
@@ -163,6 +168,41 @@ public static class Art
         Raylib.SetTextureFilter(white, TextureFilter.Point);
         loaded.Add(tex); loaded.Add(white);
         return new Strip { Tex = tex, White = white, W = w, H = h, N = n, AX = w / 2, AY = bottom + 1 };
+    }
+
+    /// <summary>Fundo de um PNG sem transparencia: a cor do canto e as cores quase iguais a ela que estao ligadas a
+    /// borda da imagem (tira o "halo" claro que fica em volta do desenho; brancos de dentro, como olhos, ficam).</summary>
+    static unsafe bool[] Background(byte* d, int w, int h)
+    {
+        const int Tol = 24;
+        byte r0 = d[0], g0 = d[1], b0 = d[2];
+        var bg = new bool[w * h];
+        var q = new Stack<int>();
+        bool Near(int i)
+        {
+            byte* p = d + i * 4;
+            return p[3] == 255 && Math.Abs(p[0] - r0) <= Tol && Math.Abs(p[1] - g0) <= Tol && Math.Abs(p[2] - b0) <= Tol;
+        }
+        for (int x = 0; x < w; x++) { q.Push(x); q.Push((h - 1) * w + x); }
+        for (int y = 0; y < h; y++) { q.Push(y * w); q.Push(y * w + w - 1); }
+        while (q.Count > 0)
+        {
+            int i = q.Pop();
+            if (bg[i] || !Near(i)) continue;
+            bg[i] = true;
+            int x = i % w, y = i / w;
+            if (x > 0) q.Push(i - 1);
+            if (x < w - 1) q.Push(i + 1);
+            if (y > 0) q.Push(i - w);
+            if (y < h - 1) q.Push(i + w);
+        }
+        // pixel exatamente da cor do canto e sempre fundo (como antes), mesmo preso dentro do desenho
+        for (int i = 0; i < w * h; i++)
+        {
+            byte* p = d + i * 4;
+            if (p[0] == r0 && p[1] == g0 && p[2] == b0) bg[i] = true;
+        }
+        return bg;
     }
 
     static void Unload()

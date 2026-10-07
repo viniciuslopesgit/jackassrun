@@ -79,9 +79,13 @@ public sealed class Modulo
 ///               H  escada (sempre com parede atras; precisa levar a um piso de 3+ blocos, porta ou subsolo)
 ///               =  ponte de madeira (tabuas caem depois de pisadas)
 ///               -  ponte de concreto            |  pilar de concreto
+///               V  chapa de metal do comboio (vagao, locomotiva): o desenho escolhe sozinho teto, lateral e
+///                  chassi com roda (a fileira de baixo do vagao)
+///               ~  trilho do comboio (enfeite em cima do chao; atravessa-se)
 ///   FUNDO       ,  dentro de casa, sala ESCURA (quem esta la dentro nao ve o heroi ate a sala ser revelada)
 ///   (vazio)     ;  dentro de casa, sala clara   :  parede de construcao (torres, portoes)
 ///               _  terra ao fundo (valas, pocos e tuneis abertos)
+///               *  dentro do vagao (parede de metal com banco e janela partida)
 ///   VARIACOES   c  caixa ou nada (50%)          b  tijolo ou nada (50%)
 ///               1 2 3  grupos de tijolo: todos os "1" do modulo aparecem juntos ou somem juntos (50%)
 ///               4 5 6  grupos de terra: idem, com terra (ex.: um tunel que as vezes esta aberto)
@@ -94,11 +98,12 @@ public sealed class Modulo
 ///               Os pes ficam na base da celula: desenhe o inimigo em cima do chao.
 ///   OBJETOS     x  barril explosivo     $  prisioneiro na jaula (+1 time out)     r  refem
 ///               o  glorb (bonus)        v  carro destruido (so na cidade; fora dela, as vezes um barril)
+///               z  cabo eletrico partido soltando faiscas (pendurado no bloco de cima; sem nada em cima, num poste)
 ///   EVENTOS     !  emboscada: ao passar por esta coluna, entram tropas correndo pela direita
 ///               ^  paraquedistas: ao passar por esta coluna, caem soldados do ceu</summary>
 public static class Modulos
 {
-    public const string Legenda = ".#BSCTDH=-|,;:_cb123456eEaAgGmMwx$rov!^";
+    public const string Legenda = ".#BSCTDH=-|,;:_cb123456eEaAgGmMwx$rov!^V~*z";
 
     /// <summary>Primeiro trecho da corrida: area segura de aquecimento (sem inimigos).</summary>
     public static readonly Modulo Inicio = new()
@@ -504,6 +509,134 @@ public static class Modulos
             "####################",
             "####################",
             "####################",
+        }},
+
+        // ---------------------------------------------------------------- SELVA: comboio abandonado e escotilha (so no cenario da selva)
+
+        // TREM ABANDONADO: Dois vagoes enferrujados na linha: arrombe as portas e atravesse por dentro (ou corra pelo teto). Cabos partidos soltam faiscas.
+        new() { Nome = "TREM ABANDONADO", Atos = Ato.Arredores | Ato.Posto, Peso = 14, Intensidade = 3, Cenarios = new[] { BgStyle.Jungle }, Mapa = new[]
+        {
+            "....................",
+            "....................",
+            "....................",
+            "...e........a.......",
+            ".VVVVVVVV..VVVVVVVV.",
+            ".D**z***D..D****z*D.",
+            ".D*e**r*D..D*e**e*D.",
+            "~VVVVVVVV~xVVVVVVVV~",
+            "####################",
+            "####################",
+            "####################",
+            "####################",
+            "####################",
+            "####################",
+            "####################",
+            "####################",
+        }},
+
+        // LOCOMOTIVA: Locomotiva abandonada: suba na caldeira, entre na cabine pela janela e saia pela porta. Poste com cabo partido ao lado da linha.
+        new() { Nome = "LOCOMOTIVA", Atos = Ato.Chegada | Ato.Arredores, Peso = 12, Intensidade = 2, Cenarios = new[] { BgStyle.Jungle }, Mapa = new[]
+        {
+            "....................",
+            "....................",
+            ".........a..........",
+            "........VVVV........",
+            "...VV.a.***V........",
+            "..VVVVVVV**D........",
+            "..VVVVVVV*eD...CCce.",
+            "~~VVVVVVVVVV~z~VVVVV",
+            "####################",
+            "####################",
+            "####################",
+            "####################",
+            "####################",
+            "####################",
+            "####################",
+            "####################",
+        }},
+
+        // TUNEL DE TREM: Tunel de comboio abandonado atravessando um morro: o vagao esquecido la dentro so deixa passar por dentro dele. Cabos faiscando no teto.
+        new() { Nome = "TUNEL DE TREM", Atos = Ato.Subsolo | Ato.Arredores, Peso = 14, Intensidade = 3, Cenarios = new[] { BgStyle.Jungle }, Mapa = new[]
+        {
+            "......a.....a.......",
+            "....############....",
+            "...##############...",
+            "...BBB########BBB...",
+            "...___z_VVVV_z___...",
+            "..._____D**D_____...",
+            "..._____D*eD_____...",
+            "~~~~~e~~VVVV~~xe~~~~",
+            "####################",
+            "####################",
+            "####################",
+            "####################",
+            "####################",
+            "####################",
+            "####################",
+            "####################",
+        }},
+
+        // ESCOTILHA: Escotilha de aco no meio da selva (estilo Lost): a escada desce para um bunker abandonado com cabos faiscando, guardas e um prisioneiro; sai-se pela outra escada.
+        new() { Nome = "ESCOTILHA", Atos = Ato.Subsolo | Ato.Posto, Peso = 12, Intensidade = 3, Cenarios = new[] { BgStyle.Jungle }, Mapa = new[]
+        {
+            "....................",
+            "....................",
+            "....................",
+            "....................",
+            "....................",
+            "....................",
+            "....................",
+            "..e.......e...x.a...",
+            "####SH_S########H###",
+            "####SH_S########H###",
+            "####BH:BBBBBBBBBHB##",
+            "####BH:::z:::z::HB##",
+            "####BH:e:::e::$:HB##",
+            "####BBBBBBBBBBBBBB##",
+            "####################",
+            "####################",
+        }},
+
+        // TRILHOS: Linha do comboio com um poste caido soltando faiscas.
+        new() { Nome = "TRILHOS", Atos = Ato.Normal, Peso = 8, Intensidade = 1, Cenarios = new[] { BgStyle.Jungle }, Mapa = new[]
+        {
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..........",
+            "..o.o.....",
+            "~~~z~~e~c~",
+            "##########",
+            "##########",
+            "##########",
+            "##########",
+            "##########",
+            "##########",
+            "##########",
+            "##########",
+        }},
+
+        // VAGAO: Um vagao sozinho na linha, para atravessar por dentro.
+        new() { Nome = "VAGAO", Atos = Ato.Chegada | Ato.Arredores | Ato.Posto, Peso = 8, Intensidade = 2, Cenarios = new[] { BgStyle.Jungle }, Mapa = new[]
+        {
+            "..........",
+            "..........",
+            "..........",
+            "....e.....",
+            ".VVVVVVVV.",
+            ".D***z**D.",
+            ".D*e**o*D.",
+            "~VVVVVVVV~",
+            "##########",
+            "##########",
+            "##########",
+            "##########",
+            "##########",
+            "##########",
+            "##########",
+            "##########",
         }},
 
         // RESPIRO: Chao plano com premios, sem inimigos.

@@ -57,7 +57,7 @@ public sealed class Bullet
     public Bullet Clone() => (Bullet)MemberwiseClone();
 }
 
-public enum PropKind { Barrel, Cage, Glorb, Hostage, Car }
+public enum PropKind { Barrel, Cage, Glorb, Hostage, Car, Wire }     // Wire = cabo eletrico soltando faiscas (Char 0 pendurado, 1 poste)
 
 public sealed class Prop
 {
@@ -177,11 +177,12 @@ public sealed class Ghost
 /// Toda alteracao entra num log com o frame, para poder ser desfeita ao rebobinar.</summary>
 public sealed class Terrain
 {
-    public const int EMPTY = 0, DIRT = 1, BRICK = 2, STEEL = 3, CRATE = 4, BEDROCK = 5, DOOR = 6, BRIDGE = 7, LADDER = 8, CONCRETE = 9, ROOF = 10;
-    static readonly int[] MaxHp = { 0, 8, 5, 999, 3, 999, 2, 2, 3, 12, 3 };
+    public const int EMPTY = 0, DIRT = 1, BRICK = 2, STEEL = 3, CRATE = 4, BEDROCK = 5, DOOR = 6, BRIDGE = 7, LADDER = 8, CONCRETE = 9, ROOF = 10,
+        WAGON = 11, RAIL = 12;      // WAGON = chapa de metal de vagao/locomotiva; RAIL = trilho (so enfeite, atravessa-se)
+    static readonly int[] MaxHp = { 0, 8, 5, 999, 3, 999, 2, 2, 3, 12, 3, 10, 1 };
     public static bool Unbreakable(int type) => type == STEEL || type == BEDROCK;
     /// <summary>Ponte e escada nao sao paredes: atravessa-se pelos lados e por baixo.</summary>
-    public static bool Passable(int type) => type == BRIDGE || type == LADDER;
+    public static bool Passable(int type) => type == BRIDGE || type == LADDER || type == RAIL;
 
     readonly struct Mod
     {
@@ -198,11 +199,11 @@ public sealed class Terrain
     public bool InGround(int tx, int ty) => surf.TryGetValue(tx, out var r) && ty >= r;
     readonly List<Mod> log = new();
 
-    // bits: 0-3 dano | 4-5 variacao | 6-7 aparencia (0 grama, 1 terra, 2 fundo) | 8-11 tipo | 12-13 parede de fundo
+    // bits: 0-3 dano | 4-5 variacao | 6-7 aparencia (0 grama, 1 terra, 2 fundo) | 8-11 tipo | 12-14 parede de fundo
     // A parede de fundo (BACK_*) fica no lugar quando o bloco da frente e destruido.
-    public const int BACK_NONE = 0, BACK_EARTH = 1, BACK_WALL = 2, BACK_HOUSE = 3;   // HOUSE = parede de dentro de casa
-    const ushort BackMask = 0x3000;
-    public static int BackOf(ushort b) => (b >> 12) & 3;
+    public const int BACK_NONE = 0, BACK_EARTH = 1, BACK_WALL = 2, BACK_HOUSE = 3, BACK_WAGON = 4;   // HOUSE = dentro de casa; WAGON = dentro do vagao
+    const ushort BackMask = 0x7000;
+    public static int BackOf(ushort b) => (b >> 12) & 7;
     public static int TypeOf(ushort b) => (b >> 8) & 15;
     public static int DmgOf(ushort b) => b & 15;
     public static int VarOf(ushort b) => (b >> 4) & 3;
@@ -242,7 +243,7 @@ public sealed class Terrain
     public void SetBack(int tx, int ty, int kind)
     {
         ushort v = Get(tx, ty);
-        SetRaw(tx, ty, (ushort)((v & ~BackMask) | ((kind & 3) << 12)));
+        SetRaw(tx, ty, (ushort)((v & ~BackMask) | ((kind & 7) << 12)));
     }
 
     public void Set(int frame, int tx, int ty, ushort v)

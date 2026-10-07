@@ -70,11 +70,12 @@ Em vez de editar a folha `sprites/herois/NOME.png`, pode desenhar uma animacao f
 - Um PNG por frame, todos do mesmo tamanho (ex.: 32x32), tocados por ordem alfabetica.
 - O heroi olha para a DIREITA. Os pes ficam centrados na horizontal; a linha mais baixa desenhada e o chao.
 - Fundo: transparente, ou uma cor solida (a cor do pixel do canto superior esquerdo vira transparente).
-- Pastas aceites: stop (parado), running (a correr), jump, fall, climb, dash, hurt, cheer, tumble.
+- Pastas aceites: stop ou idle (parado), running ou run (a correr), jumping ou jump (subindo no pulo),
+  falling ou fall (caindo), climbing ou climb (escalando/escada), dash, hurt, cheer, tumble.
   A que nao existir continua a usar a folha. F5 recarrega.
 - Arma principal: um PNG na pasta armour/ do heroi (ex.: sprites/herois/batman/armour/shuriken.png) substitui o
   projetil padrao desse heroi. A imagem e desenhada centrada no projetil e gira depois de lancada
-  (velocidade em Tune.WeaponSpin, graus por segundo). Fundo transparente.
+  (velocidade em RotacaoArma, no HeroConfig.cs, graus por segundo). Fundo transparente.
 
 ## tiles/ponte.png, escada.png, concreto.png e parede.png
 
@@ -92,6 +93,12 @@ Em vez de editar a folha `sprites/herois/NOME.png`, pode desenhar uma animacao f
   (chamine, ossos, antena de TV, parabolica), que aparece sozinho em alguns blocos do meio.
 - Na cidade e telha colonial de barro; no medieval, ardosia; na selva, palha; no jurassico, folhas; no futuro,
   painel solar.
+
+## tiles/vagao.png (comboio abandonado da selva)
+- 128x16, celulas de 16x16: 0 teto do vagao (com musgo), 1 chapa lateral, 2 chapa enferrujada com furo,
+  3 chassi com roda (pontas do vagao), 4 trilho (desenhado em cima do chao), 5 interior de baixo (banco),
+  6 interior de cima (janela partida), 7 chassi sem roda (meio do vagao).
+- O jogo escolhe a peca sozinho pela vizinhanca. Os cabos eletricos que soltam faiscas sao desenhados pelo codigo.
 
 ## sprites/objetos/paraquedas.png
 - paraquedas.png (24x18): copula dos paraquedistas; o ponto onde as cordas se juntam fica no fundo, ao centro
